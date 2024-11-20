@@ -30,8 +30,8 @@ Begin VB.Form Form1
       TabIndex        =   12
       Top             =   1200
       Width           =   9615
-      _extentx        =   15266
-      _extenty        =   10398
+      _ExtentX        =   15266
+      _ExtentY        =   10398
    End
    Begin ComctlLib.Slider Slider2 
       Height          =   375
@@ -257,6 +257,13 @@ Option Explicit
        ucSimplePlayer1.Muted = (Check1.Value = vbChecked)
    End Sub
    
+Private Sub Form_Resize()
+On Error Resume Next
+ucSimplePlayer1.Width = Me.ScaleWidth - 30
+ucSimplePlayer1.Height = Me.ScaleHeight - 90
+Debug.Print Me.Width, ucSimplePlayer1.Width
+End Sub
+
    Private Sub ucSimplePlayer1_PlaybackStart(ByVal cyDuration As Currency) 'Handles ucSimplePlayer1.PlaybackStart
        Label4.Caption = Time2String(cyDuration)
        Dim nSec As Currency
