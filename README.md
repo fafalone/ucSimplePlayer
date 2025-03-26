@@ -26,4 +26,15 @@ All the basic features are covered:
 
   **Requirements**\
 Windows 7 or newer\
-VBA can only use this project as an OCX. Use twinBASIC to compile the OCX matching your Office bitness. Tested in MS Office Excel 2021 64bit.
+VB6, twinBASIC, or VBA
+ 
+**Usage in VBA**
+VBA can only use this project as an OCX. Use twinBASIC (run it as admin) to compile the OCX matching your Office bitness, it will automatically register. 
+
+Alternatively, download the OCX matching the bitness of your MS Office version from the [Releases section](https://github.com/fafalone/ucSimplePlayer/releases), and register it with regsvr32.
+> [!TIP]
+> If you don't know whether you have 32bit or 64bit Office, go to File->Account then click 'About Excel/Access/etc'
+
+Once you've done one of the options above, ucSimplePlayer should be available in the Tools->Additional controls dialog under "Simple Video Player Control v1.1", available when you're editing a UserForm in Excel VBA, or 'ActiveX Controls' in the Access form designer-- the menu that pops up from the dropdown button on the righthand side of the built-in controls box.
+
+Tested in MS Office Excel 2021 64bit.
