@@ -18,17 +18,17 @@ All the basic features are covered:
 - Duration
 - Fullscreen
 
-  The VB6 project file and ucSimplePlayDemo.twinproj have basic players implementing the control and its functions using the control as a UserControl.
+The VB6 project file and ucSimplePlayDemo.twinproj have basic players implementing the control and its functions using the control as a UserControl.
   
-   ucSimplePlayer.twinproj is to compile an OCX which you could then use in VB6/tB plus other hosts like VBA 32bit/64bit.
+ucSimplePlayer.twinproj is to compile an OCX which you could then use in VB6/tB plus other hosts like VBA 32bit/64bit.
 
-  It will automatically toggle full screen when you double click the video, to disable this change `.AllowFullscreen` to `False`. You can still use the manual toggle (`.Fullscreen = True/False`),
+It will automatically toggle full screen when you double click the video, to disable this change `.AllowFullscreen` to `False`. You can still use the manual toggle (`.Fullscreen = True/False`),
 
-  **Requirements**\
+**Requirements**\
 Windows 7 or newer\
 VB6, twinBASIC, or VBA
  
-**Usage in VBA**
+**Usage in VBA**\
 VBA can only use this project as an OCX. Use twinBASIC (run it as admin) to compile the OCX matching your Office bitness, it will automatically register. 
 
 Alternatively, download the OCX matching the bitness of your MS Office version from the [Releases section](https://github.com/fafalone/ucSimplePlayer/releases), and register it with regsvr32.
