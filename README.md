@@ -44,15 +44,15 @@ Tested in MS Office Excel 2021 64bit.
 **Video or audio not playing?**
 You may need additional codecs for Windows Media Foundation. These are available through the Microsoft Store or by downloading the installer directly and using PowerShell. See https://www.codecguide.com/media_foundation_codecs.htm for some common ones, or get them now from AdGuard Store, searching the given Product Id (9...)
 
-HEVC	9N4WGH0Z6VHQ
-VP9	9n4d0msmp0pt
-AV1	9mvzqvxjbq9v
-MPEG-2	9n95q1zzpmh4
-Web media	9n5tdp8vcmhs
-HEIF image	9pmmsr1cgpwg
-Webp image	9pg2dk419drg
-Raw image	9nctdw2w1bh8
-AC-3/E-AC3	9nvjqjbdkn97
+HEVC	9N4WGH0Z6VHQ\
+VP9	9n4d0msmp0pt\
+AV1	9mvzqvxjbq9v\
+MPEG-2	9n95q1zzpmh4\
+Web media	9n5tdp8vcmhs\
+HEIF image	9pmmsr1cgpwg\
+Webp image	9pg2dk419drg\
+Raw image	9nctdw2w1bh8\
+AC-3/E-AC3	9nvjqjbdkn97\
 AC-4	9p7646qph1q0
 
 at https://store.rg-adguard.net/ which generates direct links to Microsoft Store server files. Download the .AppxBundle then install with PowerShell using `add-appxpackage –path "c:\path\to\file.appxbundle"`
