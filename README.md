@@ -56,3 +56,5 @@ AC-3/E-AC3	9nvjqjbdkn97\
 AC-4	9p7646qph1q0
 
 at https://store.rg-adguard.net/ which generates direct links to Microsoft Store server files. Download the .AppxBundle then install with PowerShell using `add-appxpackage –path "c:\path\to\file.appxbundle"`
+
+The first time you use some of these codecs, if you get error 0x80070426, the "Microsoft Account Sign-in Assistant" service must be enabled (though there's no sign in or need for Store to be installed or to have a MS account/logon). You can disable it again after that first use.
