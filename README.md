@@ -38,3 +38,5 @@ Alternatively, download the OCX matching the bitness of your MS Office version f
 Once you've done one of the options above, ucSimplePlayer should be available in the Tools->Additional controls dialog under "Simple Video Player Control v1.1", available when you're editing a UserForm in Excel VBA, or 'ActiveX Controls' in the Access form designer-- the menu that pops up from the dropdown button on the righthand side of the built-in controls box.
 
 Tested in MS Office Excel 2021 64bit.
+
+![image](https://github.com/user-attachments/assets/fdd63795-5f52-48a2-9750-60b7d0f15b1f)
