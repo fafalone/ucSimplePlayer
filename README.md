@@ -41,7 +41,10 @@ Tested in MS Office Excel 2021 64bit.
 
 ![image](https://github.com/user-attachments/assets/fdd63795-5f52-48a2-9750-60b7d0f15b1f)
 
-**Video or audio not playing?**
+**Compiling without admin**\
+Admin is required for the OCX for VB6 since it must install to HKLM. But for VBA/twinBASIC you don't need it: From the Project menu, open Project Settings, find the "Project: Register DLLs to HKEY_LOCAL_MACHINE" option and switch it to No. You'll no longer need admin.
+
+**Video or audio not playing?**\
 You may need additional codecs for Windows Media Foundation. These are available through the Microsoft Store or by downloading the installer directly and using PowerShell. See https://www.codecguide.com/media_foundation_codecs.htm for some common ones, or get them now from AdGuard Store, searching the given Product Id (9...)
 
 HEVC	9N4WGH0Z6VHQ\
