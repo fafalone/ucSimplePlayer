@@ -1,5 +1,5 @@
 # ucSimplePlayer v1.1.3
-Simple video player UserControl
+Simple video player UserControl/ActiveX Control
 
 ![image](https://github.com/user-attachments/assets/490b68f4-1ff7-444a-b5ed-31d10542ddc8)
 
