@@ -29,9 +29,9 @@ Windows 7 or newer\
 VB6, twinBASIC, or VBA
  
 **Usage in VBA**\
-VBA can only use this project as an OCX. Use twinBASIC (run it as admin) to compile the OCX matching your Office bitness, it will automatically register. 
+VBA can only use this project as an OCX. Use twinBASIC (run it as admin or see non-admin section further down) to compile the OCX matching your Office bitness, it will automatically register. (Note: If you don't subscribe to tB, the 64bit build will have a tB splash screen when it's loaded.)
 
-Alternatively, download the OCX matching the bitness of your MS Office version from the [Releases section](https://github.com/fafalone/ucSimplePlayer/releases), and register it with regsvr32.
+Alternatively, download the OCX matching the bitness of your MS Office version from the [Releases section](https://github.com/fafalone/ucSimplePlayer/releases), and register it with regsvr32. (There is no splash screen as I have a subscription.)
 > [!TIP]
 > If you don't know whether you have 32bit or 64bit Office, go to File->Account then click 'About Excel/Access/etc'
 
