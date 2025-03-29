@@ -1,4 +1,4 @@
-# ucSimplePlayer v1.1.3
+# ucSimplePlayer v2.2.5
 Simple video player UserControl/ActiveX Control
 
 ![image](https://github.com/user-attachments/assets/490b68f4-1ff7-444a-b5ed-31d10542ddc8)
@@ -23,6 +23,25 @@ The VB6 project file and ucSimplePlayDemo.twinproj have basic players implementi
 ucSimplePlayer.twinproj is to compile an OCX which you could then use in VB6/tB plus other hosts like VBA 32bit/64bit.
 
 It will automatically toggle full screen when you double click the video, to disable this change `.AllowFullscreen` to `False`. You can still use the manual toggle (`.Fullscreen = True/False`),
+
+**UPDATE - v2.2.5 (29 Mar 2025)**
+```
+'Version 2.2.5
+'-Added ability to select different video and audio streams:
+'   Use GetVideoStreams/GetAudioStreams to get the number and their 
+'   names/languages, then use ActiveVideoStream/ActiveAudioStream
+'   properties to set the 1-based number of the active stream.
+'-Added PreserveAspectRatio property (default True)
+'-Added PlayerKeyUp and PlayerClick events
+'-The Demo projects show how to use the above by showing a context menu
+' when the player is right clicked, allowing you to switch tracks and 
+' toggle aspect ratio and fullscreen.
+'-Added sub GetNativeSize to get original size of video w/o scaling
+'-Added PlayTimer event to make it easy for VBA clients to synchronize
+'   a progress indicator, since there's no native Timer. Control with:
+'      .EnablePlayTimer 
+'      .PlayTimerInterval (default 500ms)
+```
 
 **Requirements**\
 Windows 7 or newer\
