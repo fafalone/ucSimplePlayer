@@ -173,6 +173,136 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Explicit
 
+    #If TWINBASIC = 0 Then
+    Private Enum MII_Mask
+      MIIM_STATE = &H1
+      MIIM_ID = &H2
+      MIIM_SUBMENU = &H4
+      MIIM_CHECKMARKS = &H8
+      MIIM_TYPE = &H10
+      MIIM_DATA = &H20
+      MIIM_STRING = &H40
+      MIIM_BITMAP = &H80
+      MIIM_FTYPE = &H100
+    End Enum
+    Private Enum MenuFlags
+      MF_INSERT = &H0
+      MF_ENABLED = &H0
+      MF_UNCHECKED = &H0
+      MF_BYCOMMAND = &H0
+      MF_STRING = &H0
+      MF_UNHILITE = &H0
+      MF_GRAYED = &H1
+      MF_DISABLED = &H2
+      MF_BITMAP = &H4
+      MF_CHECKED = &H8
+      MF_POPUP = &H10
+      MF_MENUBARBREAK = &H20
+      MF_MENUBREAK = &H40
+      MF_HILITE = &H80
+      MF_CHANGE = &H80
+      MF_END = &H80                    ' Obsolete -- only used by old RES files
+      MF_APPEND = &H100
+      MF_OWNERDRAW = &H100
+      MF_DELETE = &H200
+      MF_USECHECKBITMAPS = &H200
+      MF_BYPOSITION = &H400
+      MF_SEPARATOR = &H800
+      MF_REMOVE = &H1000
+      MF_DEFAULT = &H1000
+      MF_SYSMENU = &H2000
+      MF_HELP = &H4000
+      MF_RIGHTJUSTIFY = &H4000
+      MF_MOUSESELECT = &H8000&
+    End Enum
+    Private Enum MF_Type
+      MFT_STRING = MF_STRING
+      MFT_BITMAP = MF_BITMAP
+      MFT_MENUBARBREAK = MF_MENUBARBREAK
+      MFT_MENUBREAK = MF_MENUBREAK
+      MFT_OWNERDRAW = MF_OWNERDRAW
+      MFT_RADIOCHECK = &H200
+      MFT_SEPARATOR = MF_SEPARATOR
+      MFT_RIGHTORDER = &H2000
+      MFT_RIGHTJUSTIFY = MF_RIGHTJUSTIFY
+    End Enum
+    Private Enum MF_State
+      MFS_GRAYED = &H3
+      MFS_DISABLED = MFS_GRAYED
+      MFS_CHECKED = MF_CHECKED
+      MFS_HILITE = MF_HILITE
+      MFS_ENABLED = MF_ENABLED
+      MFS_UNCHECKED = MF_UNCHECKED
+      MFS_UNHILITE = MF_UNHILITE
+      MFS_DEFAULT = MF_DEFAULT
+    End Enum
+    Private Type MENUITEMINFO
+        cbSize As Long
+        fMask As MII_Mask
+        fType As MF_Type ' used if MIIM_TYPE (4.0) or MIIM_FTYPE (>4.0)
+        fState As MF_State ' used if MIIM_STATE
+        wID As Long ' used if MIIM_ID
+        hSubMenu As LongPtr ' used if MIIM_SUBMENU
+        hbmpChecked As LongPtr ' used if MIIM_CHECKMARKS
+        hbmpUnchecked As LongPtr ' used if MIIM_CHECKMARKS
+        dwItemData As LongPtr ' used if MIIM_DATA
+        dwTypeData As LongPtr ' used if MIIM_TYPE (4.0) or MIIM_STRING (>4.0)
+        cch As Long ' used if MIIM_TYPE (4.0) or MIIM_STRING (>4.0)
+        hbmpItem As LongPtr ' used if MIIM_BITMAP
+    End Type
+    Private Enum TPM_wFlags
+        TPM_LEFTBUTTON = &H0
+        TPM_RECURSE = &H1
+        TPM_RIGHTBUTTON = &H2
+        TPM_LEFTALIGN = &H0
+        TPM_CENTERALIGN = &H4
+        TPM_RIGHTALIGN = &H8
+        TPM_TOPALIGN = &H0
+        TPM_VCENTERALIGN = &H10
+        TPM_BOTTOMALIGN = &H20
+    
+        TPM_HORIZONTAL = &H0         ' Horz alignment matters more
+        TPM_VERTICAL = &H40            ' Vert alignment matters more
+        TPM_NONOTIFY = &H80           ' Don't send any notification msgs
+        TPM_RETURNCMD = &H100
+    
+        TPM_HORPOSANIMATION = &H400
+        TPM_HORNEGANIMATION = &H800
+        TPM_VERPOSANIMATION = &H1000
+        TPM_VERNEGANIMATION = &H2000
+        TPM_NOANIMATION = &H4000
+        TPM_LAYOUTRTL = &H8000&
+        'Win7+:
+        TPM_WORKAREA = &H10000
+    End Enum
+    #If VBA7 Then
+    Private Declare PtrSafe Function CreateMenu Lib "user32" () As LongPtr
+    Private Declare PtrSafe Function CreatePopupMenu Lib "user32" () As LongPtr
+    Private Declare PtrSafe Function CheckMenuRadioItem Lib "user32" (ByVal hMenu As LongPtr, ByVal first As Long, ByVal last As Long, ByVal check As Long, ByVal flags As MenuFlags) As Long
+    Private Declare PtrSafe Function TrackPopupMenu Lib "user32" (ByVal hMenu As LongPtr, ByVal uFlags As TPM_wFlags, ByVal x As Long, ByVal y As Long, ByVal nReserved As Long, ByVal hwnd As LongPtr, lpRC As Any) As Long
+    Private Declare PtrSafe Function InsertMenuItem Lib "user32" Alias "InsertMenuItemW" (ByVal hMenu As LongPtr, ByVal uItem As Long, ByVal fByPosition As BOOL, lpmii As MENUITEMINFO) As BOOL
+    Private Declare PtrSafe Function GetCursorPos Lib "user32" (lpPoint As POINT) As BOOL
+    #Else
+    Private Declare Function CreateMenu Lib "user32" () As LongPtr
+    Private Declare Function CreatePopupMenu Lib "user32" () As LongPtr
+    Private Declare Function CheckMenuRadioItem Lib "user32" (ByVal hMenu As LongPtr, ByVal first As Long, ByVal last As Long, ByVal check As Long, ByVal flags As MenuFlags) As Long
+    Private Declare Function TrackPopupMenu Lib "user32" (ByVal hMenu As LongPtr, ByVal uFlags As TPM_wFlags, ByVal X As Long, ByVal Y As Long, ByVal nReserved As Long, ByVal hWnd As LongPtr, lpRC As Any) As Long
+    Private Declare Function InsertMenuItem Lib "user32" Alias "InsertMenuItemW" (ByVal hMenu As LongPtr, ByVal uItem As Long, ByVal fByPosition As BOOL, lpmii As MENUITEMINFO) As BOOL
+    Private Declare Function GetCursorPos Lib "user32" (lpPoint As Point) As BOOL
+    #End If
+    
+    
+    #End If
+
+
+
+
+
+   
+   
+   
+   
+   
    Private mFile As String
    Private bPause As Boolean
    Private mPlay As Boolean
@@ -261,7 +391,6 @@ Private Sub Form_Resize()
 On Error Resume Next
 ucSimplePlayer1.Width = Me.ScaleWidth - 30
 ucSimplePlayer1.Height = Me.ScaleHeight - 90
-Debug.Print Me.Width, ucSimplePlayer1.Width
 End Sub
 
    Private Sub ucSimplePlayer1_PlaybackStart(ByVal cyDuration As Currency) 'Handles ucSimplePlayer1.PlaybackStart
@@ -276,7 +405,143 @@ End Sub
        Timer1.Enabled = True
        ucSimplePlayer1.Volume = Slider2.Value / 100
    End Sub
-   
+
+  
+Private Sub ucSimplePlayer1_PlayerClick(ByVal Button As Long)
+           If Button = 2 Then
+            Dim nVid As Long, nAud As Long
+            Dim sVidL() As String, sVidN() As String
+            Dim sAudL() As String, sAudN() As String
+            ucSimplePlayer1.GetVideoStreams sVidN, sVidL, nVid
+            ucSimplePlayer1.GetAudioStreams sAudN, sAudL, nAud
+            Dim hMenu As LongPtr
+            Dim hSubV As LongPtr, hSubA As LongPtr
+            hMenu = CreatePopupMenu()
+            hSubV = CreateMenu()
+            hSubA = CreateMenu()
+            Dim i As Long
+            Dim mii As MENUITEMINFO
+            mii.cbSize = LenB(mii)
+            With mii
+                .fMask = MIIM_ID Or MIIM_STRING Or MIIM_SUBMENU
+                If nVid = 0 Then
+                    .fMask = .fMask Or MIIM_STATE
+                    .fState = MFS_DISABLED
+                End If
+                .wID = 1000
+                .dwTypeData = StrPtr("Video tracks")
+                .cch = Len("Video tracks")
+                .hSubMenu = hSubV
+                Call InsertMenuItem(hMenu, 0, True, mii)
+                
+                .fMask = MIIM_ID Or MIIM_STRING Or MIIM_SUBMENU
+                If nAud = 0 Then
+                    .fMask = .fMask Or MIIM_STATE
+                    .fState = MFS_DISABLED
+                End If
+                .wID = 1001
+                .dwTypeData = StrPtr("Audio tracks")
+                .cch = Len("Audio tracks")
+                .hSubMenu = hSubA
+                Call InsertMenuItem(hMenu, 1, True, mii)
+                
+                .fMask = MIIM_ID Or MIIM_TYPE
+                .fType = MFT_SEPARATOR
+                .wID = 0
+                Call InsertMenuItem(hMenu, 2, True, mii)
+                
+                .fMask = MIIM_ID Or MIIM_STRING
+                .wID = 1003
+                .dwTypeData = StrPtr("Lock aspect ratio")
+                .cch = Len("Lock aspect ratio")
+                If ucSimplePlayer1.PreserveAspectRatio Then
+                    .fMask = .fMask Or MIIM_STATE
+                    .fState = MFS_CHECKED
+                End If
+                Call InsertMenuItem(hMenu, 3, True, mii)
+                
+                .fMask = MIIM_ID Or MIIM_STRING
+                .wID = 1002
+                If ucSimplePlayer1.Fullscreen Then
+                    .dwTypeData = StrPtr("Exit fullscreen")
+                    .cch = Len("Exit fullscreen")
+                Else
+                    .dwTypeData = StrPtr("Enter fullscreen")
+                    .cch = Len("Enter fullscreen")
+                End If
+                Call InsertMenuItem(hMenu, 4, True, mii)
+            End With
+            
+            Dim sLbl As String
+            'Populate track menus
+            If nVid > 0 Then
+                For i = 0 To nVid - 1
+                    With mii
+                        .fMask = MIIM_ID Or MIIM_STRING
+                        .wID = 2001 + i
+                        sLbl = "(" & CStr(i + 1) & ") [" & IIf(sVidL(i) = "", "unk", sVidL(i)) & "]: " & IIf(sVidN(i) = "", "Video track #" & CStr(i + 1), sVidN(i))
+                        .dwTypeData = StrPtr(sLbl)
+                        .cch = Len(sLbl)
+
+                        Call InsertMenuItem(hSubV, i, True, mii)
+                    End With
+                Next
+                CheckMenuRadioItem hSubV, 0, i, ucSimplePlayer1.ActiveVideoStream - 1, MF_BYPOSITION
+            End If
+            If nAud > 0 Then
+                For i = 0 To nAud - 1
+                    With mii
+                        .fMask = MIIM_ID Or MIIM_STRING
+                        .wID = 9001 + i
+                        sLbl = "(" & CStr(i + 1) & ") [" & IIf(sAudL(i) = "", "unk", sAudL(i)) & "]: " & IIf(sAudN(i) = "", "Audio track #" & CStr(i + 1), sAudN(i))
+                        .dwTypeData = StrPtr(sLbl)
+                        .cch = Len(sLbl)
+
+                        Call InsertMenuItem(hSubA, i, True, mii)
+                    End With
+                Next
+                CheckMenuRadioItem hSubA, 0, i, ucSimplePlayer1.ActiveAudioStream - 1, MF_BYPOSITION
+            End If
+            
+            Dim pt As Point
+            GetCursorPos pt
+            Dim idCmd As Long
+            Dim n As Long
+            idCmd = TrackPopupMenu(hMenu, TPM_LEFTBUTTON Or TPM_RIGHTBUTTON Or TPM_LEFTALIGN Or TPM_TOPALIGN Or TPM_HORIZONTAL Or TPM_RETURNCMD, pt.X, pt.Y, 0, Me.hWnd, 0)
+            
+            'Be careful adding commands with how this is processed
+            Select Case idCmd
+                Case 1002
+                    If ucSimplePlayer1.Fullscreen Then
+                        ucSimplePlayer1.Fullscreen = False
+                    Else
+                        ucSimplePlayer1.Fullscreen = True
+                    End If
+                    
+                Case 1003
+                    If ucSimplePlayer1.PreserveAspectRatio Then
+                        ucSimplePlayer1.PreserveAspectRatio = False
+                    Else
+                        ucSimplePlayer1.PreserveAspectRatio = True
+                    End If
+                    
+                Case Is > 9000 'audio
+                    n = idCmd - 9000
+                    If n <> ucSimplePlayer1.ActiveAudioStream Then
+                        ucSimplePlayer1.ActiveAudioStream = n
+                    End If
+                    
+                Case Is > 2000 'video
+                    n = idCmd - 2000
+                    If n <> ucSimplePlayer1.ActiveVideoStream Then
+                        ucSimplePlayer1.ActiveVideoStream = n
+                    End If
+            End Select
+            
+        End If
+End Sub
+
+
    Private Sub Command3_Click() 'Handles Command3.Click
        If bPause Then
            Command3.Caption = "Pause"
