@@ -1,4 +1,4 @@
-[Description("Simple Video Player Control v2.2")]
+[Description("Simple Video Player Control v2.3")]
 [FormDesignerId("9C0AF7B2-2F07-4E19-8260-B440808F4A1E")]
 [ClassId("C2C3B376-6505-4E70-862B-1BB5DD3CC701")]
 [InterfaceId("6D9DC6D2-119D-4325-B531-CFE9566E075B")]
@@ -6,9 +6,9 @@
 [COMControl]
 Class ucSimplePlayer
 Option Explicit
-#Const DEBUGMSG = 0
+#Const DEBUGBLD = 0
 '**********************************************************************
-'ucSimplePlayer v2.2.5
+'ucSimplePlayer v2.3.10
 'by Jon Johnson
 '
 'This is a simple video player control loosely based on the SimplePlay
@@ -19,7 +19,40 @@ Option Explicit
 'Windows 7 and obscenely complex for even the simplest playback like
 'this control offers.
 '
-'Version 2.2.5
+'Requirements:
+'-Windows 7 or newer
+'
+'Version 2.3.10 (18 May 2025)
+'-Album cover is now displayed when you play audio files; you can set
+'   ShowAlbumArt to False to disable this display.
+'-A default image will be shown as album art if none could be loaded from
+'   the file, to disable, set UseDefaultAlbumArt to False, or to customize
+'   it, use SetDefaultAlbumArt and pass a byte array of an image file that
+'   is compatible with WIC.
+'   Tip: You can also use this as an audio only player by setting Visible
+'        to False
+'-Added LoopPlayback property to automatically loop playback of the current
+'   item. The PlaybackEnded and a new start event are still fired at the end
+'   of each loop.
+'-Added PlayerWheelScroll event. The demo app now shows how to use this
+'   to adjust the volume.
+'-Player now pauses/unpauses on single left click. Set AllowPauseOnClick to
+'   False to disable this behavior.
+'-Properties are now either hidden from the designer (settable at run
+'   time only), or properly saved/loaded. Ones still visible in the designer
+'   now have descriptions.
+'-Added HasVideo property get. 
+'-Switched CopyMemory variant hack to more proper PropVariantClear.
+'-(Bug fix) Duration and playback position not working when an audio-
+'           only file was played.
+'-(Bug fix) Setting Paused to False did not change the status returned by
+'           that property.
+'-(Demo) Added FLAC to Open Dialog types.
+'-(Demo) File text now also has autocomplete.
+'-(Demo) Click to pause/unpause.
+'-(Demo) Support for mousewheel on volume and position sliders.
+'
+'Version 2.2.5 (29 Mar 2025)
 '-Added ability to select different video and audio streams:
 '   Use GetVideoStreams/GetAudioStreams to get the number and their 
 '   names/languages, then use ActiveVideoStream/ActiveAudioStream
@@ -51,19 +84,25 @@ Public Event PlaybackStart(ByVal llDuration As LongLong)
 Public Event PlayTimer(ByVal llCurrentPos As LongLong, ByVal llDuration As LongLong)
 #Else
 Public Event PlaybackStart(ByVal cyDuration As Currency)
-Public Event PlayTimer(ByVal cyCurrentPos as Currency, ByVal cyDuration As Currency)
+Public Event PlayTimer(ByVal cyCurrentPos As Currency, ByVal cyDuration As Currency)
 #End If
 Public Event PlaybackEnded()
 Public Event PlayerKeyDown(ByVal vk As Long, ByVal fDown As BOOL, ByVal cRepeat As Long, ByVal flags As Long)
 Public Event PlayerKeyUp(ByVal vk As Long, ByVal fDown As BOOL, ByVal cRepeat As Long, ByVal flags As Long)
 Public Event PlayerClick(ByVal Button As Long)
+Public Event PlayerWheelScroll(ByVal delta As Integer, ByVal keyState As Integer)
+#If DEBUGBLD Then
+Public Event zDebugLog(ByVal sMsg As String)
+#End If
 Private mFile As String
 Private mPlaying As Boolean
 Private mPaused As Boolean
 Private mHasVideo As Boolean
 Private mFullscreen As Boolean
 Private mAllowFullscreen As Boolean
+Private mAllowClickPause As Boolean
 Private mPlayTimer As Boolean
+Private mPTInterval As Long
 Private dwStyleOld As WindowStyles
 Private dwStyleExOld As WindowStylesEx
 Private hParOld As LongPtr
@@ -72,9 +111,20 @@ Private mPlayer As IMFPMediaPlayer
 Private mItem As IMFPMediaItem
 Private mDuration As Variant
 Private mLockAR As Boolean
+Private mShowCover As Boolean
+Private mUseDefCover As Boolean
+Private mDefCover As LongPtr
+Private pFact As New WICImagingFactory
+Private pDecoder As IWICBitmapDecoder
+Private pFrame As IWICBitmapFrameDecode
+Private pConverter As IWICFormatConverter
+Private pScaler As IWICBitmapScaler
+Private OnBits(0 To 31) As Long
 Private mVidSize As SIZE
 Private mLastPos As Variant
- Private mSetPos As Variant
+Private mSetPos As Variant
+Private mLoop As Boolean
+Private mWin10 As Boolean 'Win10+
 Private Type StreamList
     nVid As Long 'Number of video streams
     idxVidActive As Long 'Active video stream index
@@ -106,7 +156,7 @@ Private mResetData As SetStrmData
 
 'In twinBASIC, the WinDevLib package covers both oleexp.tlb interfaces and APIs.
 #If TWINBASIC = 0 Then
-    
+Private Const vbNullPtr = 0&    
 Private Const SIZE_MINIMIZED = 1
 Private Const COLOR_WINDOW = 5
 Private Const CTRUE = 1
@@ -171,7 +221,79 @@ Private Enum WindowZOrderDefaults
     HWND_TOPMOST = -1
     HWND_NOTOPMOST = -2
 End Enum
-Private Const SW_RESTORE = 9
+Private Const SW_RESTORE = 9 
+Private Enum GDI_BITMAP_COMPRESSION
+    BI_RGB = 0
+    BI_RLE8 = 1
+    BI_RLE4 = 2
+    BI_BITFIELDS = 3
+    BI_JPEG = 4
+    BI_PNG = 5
+End Enum
+Private Type BITMAPINFOHEADER
+    biSize          As Long
+    biWidth         As Long
+    biHeight        As Long
+    biPlanes        As Integer
+    biBitCount      As Integer
+    biCompression   As GDI_BITMAP_COMPRESSION
+    biSizeImage     As Long
+    biXPelsPerMeter As Long
+    biYPelsPerMeter As Long
+    biClrUsed       As Long
+    biClrImportant  As Long
+End Type
+Private Type BITMAP
+    BMType As Long
+    BMWidth As Long
+    BMHeight As Long
+    BMWidthBytes As Long
+    BMPlanes As Integer
+    BMBitsPixel As Integer
+    BMBits As LongPtr
+End Type
+Private Type BITMAPINFO
+    bmiHeader As BITMAPINFOHEADER
+    bmiColors(0 To 0) As Long
+End Type
+Private Enum IL_CreateFlags
+  ILC_MASK = &H1
+  ILC_COLOR = &H0
+  ILC_COLORDDB = &HFE
+  ILC_COLOR4 = &H4
+  ILC_COLOR8 = &H8
+  ILC_COLOR16 = &H10
+  ILC_COLOR24 = &H18
+  ILC_COLOR32 = &H20
+  ILC_PALETTE = &H800                  ' (no longer supported...never worked anyway)
+  '5.0
+  ILC_MIRROR = &H2000
+  ILC_PERITEMMIRROR = &H8000&
+  '6.0
+  ILC_ORIGINALSIZE = &H10000
+  ILC_HIGHQUALITYSCALE = &H20000
+End Enum
+Private Enum IMAGELISTDRAWFLAGS
+    ILD_NORMAL = &H00000000
+    ILD_TRANSPARENT = &H00000001
+    ILD_BLEND25 = &H00000002
+    ILD_FOCUS = &H00000002 'ILD_BLEND25,
+    ILD_BLEND50 = &H00000004
+    ILD_SELECTED = &H00000004 'ILD_BLEND50,
+    ILD_BLEND = &H00000004 'ILD_BLEND50,
+    ILD_MASK = &H00000010
+    ILD_IMAGE = &H00000020
+    ILD_ROP = &H00000040 '(WIN32_IE >= &H300)
+    ILD_OVERLAYMASK = &H00000F00
+    ILD_PRESERVEALPHA = &H00001000
+    ILD_SCALE = &H00002000
+    ILD_DPISCALE = &H00004000
+    ILD_ASYNC = &H00008000&
+End Enum
+Private Enum GdiDIBitsColorUse
+    DIB_RGB_COLORS = 0 '/* color table in RGBs */
+    DIB_PAL_COLORS = 1 '/* color table in palette indices */
+End Enum
 #If VBA7 Then
 Private Declare PtrSafe Function BeginPaint Lib "user32" (ByVal hWnd As LongPtr, lpPaint As PAINTSTRUCT) As LongPtr
 Private Declare PtrSafe Function EndPaint Lib "user32" (ByVal hWnd As LongPtr, lpPaint As PAINTSTRUCT) As BOOL
@@ -190,7 +312,18 @@ Private Declare PtrSafe Function SetWindowPos Lib "user32" (ByVal hWnd As LongPt
 Private Declare PtrSafe Function ShowWindow Lib "user32" (ByVal hWnd As LongPtr, ByVal nCmdShow As Long) As Long
 Private Declare PtrSafe Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As LongPtr)
 Private Declare PtrSafe Function IsEqualGUID Lib "ole32" (ByRef rguid1 As UUID, ByRef rguid2 As UUID) As BOOL
-Private DeclareWide PtrSafe Function PropVariantToStringAlloc Lib "propsys" (ByRef propvar1 As Any, ppszOut As LongPtr) As Long
+Private Declare PtrSafe Function PropVariantToStringAlloc Lib "propsys" (ByRef propvar1 As Any, ppszOut As LongPtr) As Long
+Private Declare PtrSafe Function PropVariantClear Lib "ole32" (ByRef pvarg As Variant) As Long
+Private Declare PtrSafe Function GetClientRect Lib "user32" (ByVal hWnd As LongPtr, lpRect As RECT) As BOOL
+Private Declare PtrSafe Function CreateDIBSection Lib "gdi32" (ByVal hDC As LongPtr, pbmi As Any, ByVal usage As Long, ByRef ppvBits As Any, ByVal hSection As LongPtr, ByVal offset As Long) As LongPtr
+Private Declare PtrSafe Function GetDC Lib "user32" (ByVal hWnd As LongPtr) As LongPtr
+Private Declare PtrSafe Function CreateDIBSection Lib "gdi32" (ByVal hDC As LongPtr, pbmi As Any, ByVal usage As Long, ByRef ppvBits As Any, ByVal hSection As LongPtr, ByVal offset As Long) As LongPtr
+Private Declare PtrSafe Function DeleteObject Lib "gdi32" (ByVal hObject As LongPtr) As BOOL
+Private Declare PtrSafe Function GetObjectW Lib "gdi32" (ByVal hObject As LongPtr, ByVal nCount As Long, lpObject As Any) As Long
+Private Declare PtrSafe Function ImageList_Create Lib "comctl32" (ByVal cx As Long, ByVal cy As Long, ByVal Flags As IL_CreateFlags, ByVal cInitial As Long, ByVal cGrow As Long) As LongPtr
+Private Declare PtrSafe Function ImageList_Destroy Lib "comctl32" (ByVal himl As LongPtr) As Long
+Private Declare PtrSafe Function ImageList_Add Lib "comctl32" (ByVal himl As LongPtr, ByVal hbmImage As LongPtr, ByVal hBMMask As LongPtr) As Long
+Private Declare PtrSafe Function ImageList_Draw Lib "comctl32" (ByVal himl As LongPtr, ByVal i As Long, ByVal hdcDst As LongPtr, ByVal X As Long, ByVal Y As Long, ByVal fStyle As IMAGELISTDRAWFLAGS) As Long
 #Else
 Private Declare Function BeginPaint Lib "user32" (ByVal hWnd As LongPtr, lpPaint As PAINTSTRUCT) As LongPtr
 Private Declare Function EndPaint Lib "user32" (ByVal hWnd As LongPtr, lpPaint As PAINTSTRUCT) As BOOL
@@ -210,6 +343,16 @@ Private Declare Function ShowWindow Lib "user32" (ByVal hWnd As LongPtr, ByVal n
 Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As LongPtr)
 Private Declare Function IsEqualGUID Lib "ole32" (ByRef rguid1 As UUID, ByRef rguid2 As UUID) As BOOL
 Private Declare Function PropVariantToStringAlloc Lib "propsys" (ByRef propvar1 As Any, ppszOut As LongPtr) As Long
+Private Declare Function PropVariantClear Lib "ole32" (ByRef pvarg As Variant) As Long 
+Private Declare Function GetClientRect Lib "user32" (ByVal hWnd As LongPtr, lpRect As RECT) As BOOL
+Private Declare Function CreateDIBSection Lib "gdi32" (ByVal hDC As LongPtr, pbmi As Any, ByVal usage As Long, ByRef ppvBits As Any, ByVal hSection As LongPtr, ByVal offset As Long) As LongPtr
+Private Declare Function GetDC Lib "user32" (ByVal hWnd As LongPtr) As LongPtr
+Private Declare Function DeleteObject Lib "gdi32" (ByVal hObject As LongPtr) As BOOL
+Private Declare Function GetObjectW Lib "gdi32" (ByVal hObject As LongPtr, ByVal nCount As Long, lpObject As Any) As Long
+Private Declare Function ImageList_Create Lib "comctl32" (ByVal cx As Long, ByVal cy As Long, ByVal Flags As IL_CreateFlags, ByVal cInitial As Long, ByVal cGrow As Long) As LongPtr
+Private Declare Function ImageList_Destroy Lib "comctl32" (ByVal himl As LongPtr) As Long
+Private Declare Function ImageList_Add Lib "comctl32" (ByVal himl As LongPtr, ByVal hbmImage As LongPtr, ByVal hBMMask As LongPtr) As Long
+Private Declare Function ImageList_Draw Lib "comctl32" (ByVal himl As LongPtr, ByVal i As Long, ByVal hdcDst As LongPtr, ByVal X As Long, ByVal Y As Long, ByVal fStyle As IMAGELISTDRAWFLAGS) As Long
 #End If
 #If Win64 Then
 Private Const PTR_SIZE = 8
@@ -222,6 +365,18 @@ Private Declare Function SetWindowLongPtr Lib "user32" Alias "SetWindowLongW" (B
 #End If
 
 'WinDevLib helpers needed for VB6 only:
+Private Type SignedWords
+    LoWord As Integer
+    HiWord As Integer
+End Type
+Private Function GET_WHEEL_DELTA_WPARAM(ByVal wParam As LongPtr) As Integer
+    Dim sw as SignedWords
+    CopyMemory sw, wParam, lenb(sw)
+    GET_WHEEL_DELTA_WPARAM = sw.HiWord
+End Function
+Private Function GET_KEYSTATE_WPARAM(ByVal wParam As LongPtr) As Integer
+    GET_KEYSTATE_WPARAM = LOWORD(wParam)
+End Function
 Private Function SUCCEEDED(hr As Long) As Boolean
     SUCCEEDED = (hr >= 0)
 End Function
@@ -320,21 +475,109 @@ Static iid As UUID
  If (iid.Data1 = 0) Then Call DEFINE_UUID(iid, &H4F1B099D, &HD314, &H41E5, &HA7, &H81, &H7F, &HEF, &HAA, &H4C, &H50, &H1F)
 MF_SD_STREAM_NAME = iid
 End Function
+Private Function GUID_WICPixelFormat32bppBGRA() As UUID
+Static iid As UUID
+ If (iid.Data1 = 0&) Then Call DEFINE_UUID(iid, &H6FDDC324, &H4E03, &H4BFE, &HB1, &H85, &H3D, &H77, &H76, &H8D, &HC9, &HF)
+GUID_WICPixelFormat32bppBGRA = iid
+End Function
 Private Sub DEFINE_UUID(Name As UUID, L As Long, w1 As Integer, w2 As Integer, B0 As Byte, b1 As Byte, b2 As Byte, B3 As Byte, b4 As Byte, b5 As Byte, b6 As Byte, b7 As Byte)
   With Name
     .Data1 = L: .Data2 = w1: .Data3 = w2: .Data4(0) = B0: .Data4(1) = b1: .Data4(2) = b2: .Data4(3) = B3: .Data4(4) = b4: .Data4(5) = b5: .Data4(6) = b6: .Data4(7) = b7
   End With
+End Sub
+Private Function UUID_NULL() As UUID
+Static bSet As Boolean
+Static iid As UUID
+If bSet = False Then
+  With iid
+    .Data1 = 0: .Data2 = 0: .Data3 = 0
+    .Data4(0) = 0: .Data4(1) = 0: .Data4(2) = 0: .Data4(3) = 0: .Data4(4) = 0: .Data4(5) = 0: .Data4(6) = 0: .Data4(7) = 0
+  End With
+End If
+bSet = True
+UUID_NULL = iid
+End Function
+Public Function PKEY_ThumbnailStream() As PROPERTYKEY
+Static pkk As PROPERTYKEY
+ If (pkk.fmtid.Data1 = 0&) Then Call DEFINE_PROPERTYKEY(pkk, &HF29F85E0, &H4FF9, &H1068, &HAB, &H91, &H8, &H0, &H2B, &H27, &HB3, &HD9, 27)
+PKEY_ThumbnailStream = pkk
+End Function
+Private Sub DEFINE_PROPERTYKEY(Name As PROPERTYKEY, L As Long, w1 As Integer, w2 As Integer, B0 As Byte, b1 As Byte, b2 As Byte, B3 As Byte, b4 As Byte, b5 As Byte, b6 As Byte, b7 As Byte, pid As Long)
+  With Name.fmtid
+    .Data1 = L: .Data2 = w1: .Data3 = w2: .Data4(0) = B0: .Data4(1) = b1: .Data4(2) = b2: .Data4(3) = B3: .Data4(4) = b4: .Data4(5) = b5: .Data4(6) = b6: .Data4(7) = b7
+  End With
+  Name.pid = pid
 End Sub
 #End If
 '******************************************************
 'END VB ONLY
 
 Private Sub DebugLog(sMsg As String)
-    #If DEBUGMSG Then
+    #If DEBUGBLD Then
     Debug.Print sMsg
+    RaiseEvent zDebugLog(sMsg)
     #End If
 End Sub
+
+Private Sub UserControl_Initialize() Handles UserControl.Initialize
+    Dim dwMajor As Long
+    CopyMemory dwMajor, ByVal &H7FFE026C, 4
+    If dwMajor >= 10 Then mWin10 = True
+End Sub
+Private Sub UserControl_Terminate() Handles UserControl.Terminate
+    If (mPlayer Is Nothing) = False Then
+        mPlayer.Shutdown
+    End If
+    If (pScaler Is Nothing) = False Then Set pScaler = Nothing
+    If (pConverter Is Nothing) = False Then Set pConverter = Nothing
+    If (pFrame Is Nothing) = False Then Set pFrame = Nothing
+    If (pDecoder Is Nothing) = False Then Set pDecoder = Nothing
+    If (pFact Is Nothing) = False Then Set pFact = Nothing
+    If mDefCover Then
+        GlobalFree mDefCover
+        mDefCover = 0
+    End If
+End Sub
+
+Private Sub UserControl_ReadProperties(PropBag As PropertyBag) Handles UserControl.ReadProperties
+    mAllowFullscreen = PropBag.ReadProperty("AllowFullscreen", True)
+    mAllowClickPause = PropBag.ReadProperty("AllowPauseOnClick", True)
+    mLockAR = PropBag.ReadProperty("PreserveAspectRatio", True)
+    mShowCover = PropBag.ReadProperty("ShowAlbumArt", True)
+    mUseDefCover = PropBag.ReadProperty("UseDefaultAlbumArt", True)
+    mPlayTimer = PropBag.ReadProperty("EnablePlayTimer", False)
+    mLoop = PropBag.ReadProperty("LoopPlayback", False)
+    mPTInterval = PropBag.ReadProperty("PlayTimerInterval", 500)
+End Sub
+Private Sub UserControl_WriteProperties(PropBag As PropertyBag) Handles UserControl.WriteProperties
+    PropBag.WriteProperty "AllowFullscreen", mAllowFullscreen, True
+    PropBag.WriteProperty "AllowPauseOnClick", mAllowClickPause, True
+    PropBag.WriteProperty "PreserveAspectRatio", mLockAR, True
+    PropBag.WriteProperty "ShowAlbumArt", mShowCover, True
+    PropBag.WriteProperty "UseDefaultAlbumArt", mUseDefCover, True
+    PropBag.WriteProperty "EnablePlayTimer", mPlayTimer, False
+    PropBag.WriteProperty "LoopPlayback", mLoop, False
+    PropBag.WriteProperty "PlayTimerInterval", mPTInterval, 500
+End Sub
+
+Private Sub UserControl_InitProperties() Handles UserControl.InitProperties
+    mAllowFullscreen = True
+    mAllowClickPause = True
+    mLockAR = True
+    mShowCover = True
+    mUseDefCover = True
+    mPTInterval = 500
+End Sub
+
+Private Sub UserControl_Show() Handles UserControl.Show
+    If Ambient.UserMode Then
+        Subclass2 UserControl.hWnd, AddressOf ucSimplePlayerHelperProc, UserControl.hWnd, ObjPtr(Me)
+ 
+    End If
+End Sub
+
 Public Property Get Paused() As Boolean
+Attribute Paused.VB_MemberFlags = "400"
     Paused = mPaused
 End Property
 Public Property Let Paused(ByVal fPaused As Boolean)
@@ -344,10 +587,12 @@ Public Property Let Paused(ByVal fPaused As Boolean)
         mPaused = True
         mPlayer.Pause
     Else
+        mPaused = False
         mPlayer.Play
     End If
 End Property
 Public Property Get FileName() As String
+Attribute FileName.VB_MemberFlags = "400"
     FileName = mFile
 End Property
 Public Property Let FileName(ByVal sFullPath As String)
@@ -369,9 +614,6 @@ Public Sub PlayMediaFile(ByVal sFullPath As String)
         Exit Sub
     End If
     mPlayer.CreateMediaItemFromURL StrPtr(sFullPath), CFALSE, 0, Nothing
-    #If TWINBASIC Then
-    DebugLog "CreateMediaItemFromURL hr=" & Err.LastHresult
-    #End If
     Exit Sub
 e0:
     DebugLog "PlayMediaFile error 0x" & Hex$(Err.Number) & ", " & Err.Description
@@ -386,6 +628,8 @@ e0:
     DebugLog "FrameStep error 0x" & Hex$(Err.Number) & ", " & Err.Description
 End Sub
 Public Property Get Volume() As Single
+Attribute Volume.VB_Description = "Adjusts the volume of audio."
+Attribute Volume.VB_MemberFlags = "400"
     On Error GoTo e0
     If (mPlayer Is Nothing) = False Then
         mPlayer.GetVolume Volume
@@ -404,6 +648,8 @@ e0:
     DebugLog "Volume.Let error 0x" & Hex$(Err.Number) & ", " & Err.Description
 End Property
 Public Property Get Balance() As Single
+Attribute Balance.VB_Description = "Adjusts the left/right balance of audio."
+Attribute Balance.VB_MemberFlags = "400"
     On Error GoTo e0
     If (mPlayer Is Nothing) = False Then
         mPlayer.GetBalance Balance
@@ -422,6 +668,8 @@ e0:
     DebugLog "Balance.Let error 0x" & Hex$(Err.Number) & ", " & Err.Description
 End Property
 Public Property Get Muted() As Boolean
+Attribute Muted.VB_Description = "Mute or unmute the audio."
+Attribute Muted.VB_MemberFlags = "400"
     On Error GoTo e0
     If (mPlayer Is Nothing) = False Then
         Dim fMute As BOOL
@@ -432,6 +680,7 @@ Public Property Get Muted() As Boolean
 e0:
     DebugLog "Muted.Get error 0x" & Hex$(Err.Number) & ", " & Err.Description
 End Property
+
 Public Property Let Muted(ByVal bMute As Boolean)
     On Error GoTo e0
     If (mPlayer Is Nothing) = False Then
@@ -458,6 +707,8 @@ e0:
     DebugLog "Duration.Get error 0x" & Hex$(Err.Number) & ", " & Err.Description
 End Property
 Public Property Get Position() As Currency
+Attribute Position.VB_MemberFlags = "400"
+    ' Debuglog "Enter Position.Get"
     On Error GoTo e0
     If (mPlayer Is Nothing) = False Then
         Dim pv As Variant
@@ -470,13 +721,13 @@ e0:
     DebugLog "Position.Get error 0x" & Hex$(Err.Number) & ", " & Err.Description
 End Property
 Public Property Let Position(ByVal cyPos As Currency)
+    ' DebugLog "Enter Position.Let " & cyPos
     On Error GoTo e0
     If (mPlayer Is Nothing) = False Then
         Dim pv As Variant
         pv = cyPos
         VariantSetType pv, VT_I8, VT_CY
         mPlayer.SetPosition MFP_POSITIONTYPE_100NS, pv
-         
     End If
     Exit Property
 e0:
@@ -495,7 +746,11 @@ Public Sub GetNativeVideoSize(pcx As Long, pcy As Long, pcxAspectRatio As Long, 
 e0:
     DebugLog "GetNativeVideoSize error 0x" & Hex$(Err.Number) & ", " & Err.Description
 End Sub
+Public Property Get HasVideo() As Boolean
+    HasVideo = mHasVideo
+End Property
 Public Property Get BorderColor() As OLE_COLOR
+Attribute BorderColor.VB_MemberFlags = "400"
     On Error GoTo e0
     If (mPlayer Is Nothing) = False Then
         Dim pclr As Long
@@ -527,6 +782,7 @@ e0:
     DebugLog "GetSupportedRates error 0x" & Hex$(Err.Number) & ", " & Err.Description
 End Sub
 Public Property Get Rate() As Single
+Attribute Rate.VB_MemberFlags = "400"
     On Error GoTo e0
     If (mPlayer Is Nothing) = False Then
         mPlayer.GetRate Rate
@@ -544,13 +800,54 @@ Public Property Let Rate(ByVal fRate As Single)
 e0:
     DebugLog "Rate.Let error 0x" & Hex$(Err.Number) & ", " & Err.Description
 End Property
+Public Property Get ShowAlbumArt() As Boolean
+Attribute ShowAlbumArt.VB_Description = "Sets whether the embedded album art of an audio file like mp3 is displayed."
+    ShowAlbumArt = mShowCover
+End Property
+Public Property Let ShowAlbumArt(bShow As Boolean)
+    If bShow = False Then
+        Picture1.Visible = False 'hide the cover if it's currently shown and we're turning off
+    End If
+    mShowCover = bShow
+End Property
+Public Property Get UseDefaultAlbumArt() As Boolean
+Attribute UseDefaultAlbumArt.VB_Description = "Sets whether a default image is displayed if an audio file has no embedded album art but ShowAlbumArt is True."
+    UseDefaultAlbumArt = mUseDefCover
+End Property
+Public Property Let UseDefaultAlbumArt(ByVal bValue As Boolean)
+    UseDefaultAlbumArt = bValue
+End Property
+Public Function SetDefaultAlbumArt(ImageFileBytes() As Byte) As Long
+    On Error GoTo e0
+    If mDefCover Then
+        GlobalFree mDefCover
+        mDefCover = 0
+        mDefCover = GlobalAlloc(GPTR, UBound(ImageFileBytes) + 1)
+    End If
+    If mDefCover Then
+        CopyMemory ByVal mDefCover, ImageFileBytes(0), UBound(ImageFileBytes) + 1
+    End If
+    Exit Function
+e0:
+    SetDefaultAlbumArt = Err.Number
+    DebugLog "SetDefaultAlbumArt error 0x" & Hex$(Err.Number) & ", " & Err.Description
+End Function
 Public Property Get AllowFullscreen() As Boolean
+Attribute AllowFullscreen.VB_Description = "Sets whether the player automatically enters fullscreen mode when double-clicked."
     AllowFullscreen = mAllowFullscreen
 End Property
 Public Property Let AllowFullscreen(bAllow As Boolean)
     mAllowFullscreen = bAllow
 End Property
+Public Property Get AllowPauseOnClick() As Boolean
+Attribute AllowPauseOnClick.VB_Description = "Sets whether the player automatically pauses/unpauses when clicked."
+    AllowPauseOnClick = mAllowClickPause
+End Property
+Public Property Let AllowPauseOnClick(bAllow As Boolean)
+    mAllowClickPause = bAllow
+End Property
 Public Property Get Fullscreen() As Boolean
+Attribute Fullscreen.VB_MemberFlags = "400"
     Fullscreen = mFullscreen
 End Property
 Public Property Let Fullscreen(bFullscreen As Boolean)
@@ -566,30 +863,49 @@ Public Property Let Fullscreen(bFullscreen As Boolean)
     End If
 End Property
 Public Property Get EnablePlayTimer() As Boolean
+Attribute EnablePlayTimer.VB_Description = "Sets whether a timer periodically fires to sync playback. Intended for VBA where there's no built in timer."
     EnablePlayTimer = mPlayTimer
 End Property
 Public Property Let EnablePlayTimer(ByVal bEnable As Boolean)
     mPlayTimer = bEnable
     If (mPlaying = True) And (bEnable = True) Then
+        Timer1.Interval = mPTInterval
         Timer1.Enabled = True
     Else
         Timer1.Enabled = False
     End If
 End Property
 Public Property Get PlayTimerInterval() As Long
-    EnablePlayTimer = Timer1.Interval
+Attribute PlayTimerInterval.VB_Description = "Sets the interval for the play timer, in milliseconds."
+    EnablePlayTimer = mPTInterval
 End Property
 Public Property Let PlayTimeInterval(ByVal lInterval As Long)
-    Timer1.Interval = lInterval
+    mPTInterval = lInterval
+End Property
+Public Property Get LoopPlayback() As Boolean
+Attribute LoopPlayback.VB_Description = "Automatically repeat playback of the current file when it reaches the end."
+    LoopPlayback = mLoop
+End Property
+Public Property Let LoopPlayback(ByVal bValue As Boolean)
+    mLoop = bValue
 End Property
 Public Property Get PreserveAspectRatio() As Boolean
+Attribute PreserveAspectRatio.VB_Description = "Sets whether the ratio of width to height is preserved when video is resized to fit the window or monitor."
     PreserveAspectRatio = mLockAR
 End Property
 Public Property Let PreserveAspectRatio(ByVal bPreserve As Boolean)
     If bPreserve = mLockAR Then Exit Property
+    On Error Resume Next
     mLockAR = bPreserve
     If (mPlayer Is Nothing) = False Then
         mPlayer.SetAspectRatioMode(IIf(mLockAR, MFVideoARMode_PreservePicture, MFVideoARMode_None))
+        If Picture1.Visible = True Then
+            Dim rcCur As RECT
+            GetClientRect UserControl.hWnd, rcCur
+            Picture1.Width = rcCur.Right
+            Picture1.Height = rcCur.Bottom
+            DrawWicImage
+        End If
     End If
 End Property
 Public Sub GetNativeSize(pcx As Long, pcy As Long)
@@ -611,6 +927,7 @@ Public Sub GetAudioStreams(pName() As String, pLang() As String, nStrm As Long)
     End If
 End Sub
 Public Property Get ActiveVideoStream() As Long
+Attribute ActiveVideoStream.VB_MemberFlags = "400"
     ActiveVideoStream = mCurStreams.idxVidActive
 End Property
 Public Property Let ActiveVideoStream(ByVal nStrm As Long)
@@ -643,6 +960,7 @@ e0:
     DebugLog "ActiveVideoStream.Let error 0x" & Hex$(Err.Number) & ", " & Err.Description
 End Property
 Public Property Get ActiveAudioStream() As Long
+Attribute ActiveAudioStream.VB_MemberFlags = "400"
     ActiveAudioStream = mCurStreams.idxAudActive
 End Property
 Public Property Let ActiveAudioStream(ByVal nStrm As Long)
@@ -691,8 +1009,12 @@ Private Sub IMFPMediaPlayerCallback_OnMediaPlayerEvent(pEventHeader As MFP_EVENT
             OnMediaItemSet MFP_GET_MEDIAITEM_SET_EVENT(pEventHeader)
  
         Case MFP_EVENT_TYPE_PLAYBACK_ENDED
-            Timer1.Enabled = False
             RaiseEvent PlaybackEnded
+            If mLoop Then
+                mPlayer.Play
+            Else
+                Timer1.Enabled = False
+            End If
              
     End Select
 End Sub
@@ -716,6 +1038,11 @@ Private Sub IMFPMediaPlayerCallback_OnMediaPlayerEvent(pEventHeader As MFP_EVENT
  
         Case MFP_EVENT_TYPE_PLAYBACK_ENDED
             RaiseEvent PlaybackEnded
+            If mLoop Then
+                mPlayer.Play
+            Else
+                Timer1.Enabled = False
+            End If
     End Select
 End Sub
 Private Property Get MFP_GET_MEDIAITEM_CREATED_EVENT_HELPER(MFP_MEDIAITEM_CREATED_EVENT As MFP_MEDIAITEM_CREATED_EVENT, ByVal pEventHeader As LongPtr) As MFP_MEDIAITEM_CREATED_EVENT
@@ -763,18 +1090,48 @@ Private Sub OnMediaItemSet(pEvent As MFP_MEDIAITEM_SET_EVENT)
     MapStreams pEvent.pMediaItem
     mPlayer.Play
     mPlaying = True
-    If mPlayTimer Then Timer1.Enabled = True
+    On Error Resume Next
+    If mPlayTimer Then
+        Timer1.Interval = mPTInterval
+        Timer1.Enabled = True
+    End If
     'Can't get duration prior to this
     If mResetData.Active Then
         mResetData.Active = False
         mCurStreams.idxVidActive = mResetData.nV
         mCurStreams.idxAudActive = mResetData.nA
+        DebugLog "mResetData.Active"
         mPlayer.SetPosition MFP_POSITIONTYPE_100NS, mResetData.lastPos
     End If
     Dim dr As Currency
     Dim pv As Variant
     mPlayer.GetDuration MFP_POSITIONTYPE_100NS, mDuration
-    mPlayer.GetNativeVideoSize mVidSize, vbNullPtr
+    If mHasVideo Then
+        If Picture1.Visible = True Then
+            Picture1.Visible = False
+            UnSubclass2 Picture1.hWnd, AddressOf ucSimplePlayerHelperProc, Picture1.hWnd
+        End If
+        Dim sz As SIZE
+        mPlayer.GetNativeVideoSize mVidSize, sz
+    Else
+        If mShowCover Then
+            'This is a bad hack to display album art.
+            'Even though I blocked off all the WM_PAINT handling, it would
+            'still glitch out and not draw, even if AutoRedraw was changed.
+            Picture1.Visible = True
+            Picture1.BackColor = UserControl.BackColor
+            Dim rcCur As RECT
+            GetClientRect UserControl.hWnd, rcCur
+            ' Picture1.Width = UserControl.ScaleWidth
+            ' Picture1.Height = UserControl.ScaleHeight
+            Picture1.Width = rcCur.Right
+            Picture1.Height = rcCur.Bottom
+            DebugLog "OnSet " & UserControl.ScaleWidth & ", " & UserControl.ScaleHeight & ", " & rcCur.Right & ", " & rcCur.Bottom & ", " & Picture1.Width & ", " & Picture1.Height
+            Picture1.Cls
+            LoadAlbumArt pEvent.pMediaItem
+            Subclass2 Picture1.hWnd, AddressOf ucSimplePlayerHelperProc, Picture1.hWnd, ObjPtr(Me)
+        End If
+    End If
     #If TWINBASIC Then
     RaiseEvent PlaybackStart(mDuration)
     #Else
@@ -884,11 +1241,11 @@ Private Sub MapStreams(ByVal pItem As IMFPMediaItem)
         Else
             DebugLog "Stream " & i & " MF_SD_LANGUAGE error 0x" & Hex$(Err.Number)
         End If
+        PropVariantClear pvType
+        PropVariantClear pvName
+        PropVariantClear pvLang
     Next
-    CopyMemory pvType, VT_I4, 2 'VariantClear will cause a crash trying to improperly free VT_LPWSTR/VT_CLSID
-    CopyMemory pvName, VT_I4, 2
-    CopyMemory pvLang, VT_I4, 2
-    Exit Sub
+Exit Sub
 e0:
     DebugLog "MapStreams Error 0x" & Hex$(Err.Number) & ", " & Err.Description
 End Sub
@@ -900,23 +1257,6 @@ Right$("00" & Hex$(CLng(tg.Data4(3))), 2) & Right$("00" & Hex$(CLng(tg.Data4(4))
 Right$("00" & Hex$(CLng(tg.Data4(6))), 2) & Right$("00" & Hex$(CLng(tg.Data4(7))), 2)
 If bBrack Then dbg_GUIDToString = "{" & dbg_GUIDToString & "}"
 End Function
-Private Sub UserControl_Initialize() Handles UserControl.Initialize
-    mAllowFullscreen = True
-    mLockAR = True
-    Timer1.Interval = 500
-End Sub
-Private Sub UserControl_Terminate() Handles UserControl.Terminate
-    If (mPlayer Is Nothing) = False Then
-        mPlayer.Shutdown
-    End If
-End Sub
-
-Private Sub UserControl_Show() Handles UserControl.Show
-    If Ambient.UserMode Then
-        Subclass2 UserControl.hWnd, AddressOf ucSimplePlayerHelperProc, UserControl.hWnd, ObjPtr(Me)
- 
-    End If
-End Sub
  
 Private Sub OnSize(ByVal hwnd As LongPtr, ByVal state As Long, ByVal cx As Long, ByVal cy As Long)
     If state <> SIZE_MINIMIZED Then
@@ -926,15 +1266,11 @@ Private Sub OnSize(ByVal hwnd As LongPtr, ByVal state As Long, ByVal cx As Long,
     End If
 End Sub
 
-
 Private Sub OnPaint(ByVal hwnd As LongPtr)
     Dim ps As PAINTSTRUCT
     Dim hdc As LongPtr
     hdc = BeginPaint(hwnd, ps)
     If ((mPlayer Is Nothing) = False) And (mHasVideo = True) Then
-        ' Dim s As MFP_MEDIAPLAYER_STATE
-        ' mPlayer.GetState s
-        ' DebugLog "State=" & s
         On Error Resume Next
         mPlayer.UpdateVideo
     Else
@@ -960,7 +1296,13 @@ Private Function EnterFullscreen() As Long
     SetWindowPos UserControl.hWnd, HWND_TOP, mi.rcMonitor.Left, mi.rcMonitor.Top, _
                         mi.rcMonitor.Right - mi.rcMonitor.Left, _
                         mi.rcMonitor.Bottom - mi.rcMonitor.Top, SWP_NOOWNERZORDER Or SWP_FRAMECHANGED
-
+    If mHasVideo = False Then
+        Dim rcCur As RECT
+        GetClientRect UserControl.hWnd, rcCur
+        Picture1.Width = rcCur.Right
+        Picture1.Height = rcCur.Bottom
+        DrawWicImage
+    End If
     EnterFullscreen = 1
 End Function
  
@@ -973,6 +1315,13 @@ Private Function ExitFullscreen() As Long
     SetWindowPlacement UserControl.hWnd, mOldPlacement
     UserControl.Width = UserControl.Width - 1
     UserControl.Width = UserControl.Width + 1
+    If mHasVideo = False Then
+        Dim rcCur As RECT
+        GetClientRect UserControl.hWnd, rcCur
+        Picture1.Width = rcCur.Right
+        Picture1.Height = rcCur.Bottom
+        DrawWicImage
+    End If
     ExitFullscreen = 1
 End Function
 
@@ -986,9 +1335,263 @@ Private Sub Timer1_Timer() Handles Timer1.Timer
     RaiseEvent PlayTimer(CCur(pv), CCur(mDuration))
     #End If
 End Sub
- 
+
+Private Function LoadAlbumArt(ByVal pItem As IMFPMediaItem) As Long
+    On Error Resume Next
+    If mHasVideo = True Then LoadAlbumArt = S_FALSE: Exit Function
+    If pItem Is Nothing Then LoadAlbumArt = E_POINTER: Exit Function
+    Dim pStore As IPropertyStore
+    Dim hr As Long
+    Dim bSkipDef As Boolean
+    pItem.GetMetadata pStore
+    If (pStore Is Nothing) = False Then
+        Dim vr As Variant
+        Dim pStm As IStream
+        hr = pStore.GetValue(PKEY_ThumbnailStream, vr)
+        If SUCCEEDED(hr) Then
+            If VarTypeEx(vr) = VT_STREAM Then
+                'change to VT_UNKNOWN so tB can cast
+                Dim vt As Integer
+                vt = VT_UNKNOWN
+                CopyMemory vr, vt, 2
+            Else
+                DebugLog "DrawAlbumArt::ThumbStream not VT_STREAM"
+            End If
+            Set pStm = vr
+            If pStm Is Nothing Then
+                DebugLog "No IStream, vt=" & VarTypeEx(vr)
+            Else
+                bSkipDef = True
+            End If
+        Else
+            DebugLog "Couldn't get thumbstream for album art."
+        End If
+    Else
+        DebugLog "Couldn't get property store for album art."
+    End If
+    'We land here if everything didn't go right; load default
+    If Not bSkipDef Then
+        If mUseDefCover Then
+            If mDefCover = 0 Then
+                Dim bt() As Byte
+                bt = LoadResData(201, "PNG")
+                If UBound(bt) Then
+                    mDefCover = GlobalAlloc(GPTR, UBound(bt) + 1)
+                    If mDefCover Then
+                        CopyMemory ByVal mDefCover, bt(0), UBound(bt) + 1
+                    End If
+                End If
+            End If
+            Set pStm = CreateStreamOnHGlobal(mDefCover, CTRUE)
+        End If
+    End If
+    If (pStm Is Nothing) = False Then
+        #If TWINBASIC Then
+        Set pDecoder = pFact.CreateDecoderFromStream(pStm, vbNullPtr, WICDecodeMetadataCacheOnDemand)
+        #Else
+        Set pDecoder = pFact.CreateDecoderFromStream(pStm, UUID_NULL, WICDecodeMetadataCacheOnDemand)    
+        #End If
+        If (pDecoder Is Nothing) = False Then
+            Set pFrame = pDecoder.GetFrame(0)
+            If (pFrame Is Nothing) = False Then
+            Set pConverter = pFact.CreateFormatConverter()
+            If pConverter Is Nothing Then
+                DebugLog "OpenFile:No converter"
+                GoTo done
+            End If
+            pConverter.Initialize pFrame, GUID_WICPixelFormat32bppBGRA, WICBitmapDitherTypeNone, Nothing, 0, WICBitmapPaletteTypeCustom
+            DrawWicImage
+            End If
+        Else
+            DebugLog "Failed to create bitmap decoder"
+        End If
+    Else
+        DebugLog "No stream for DrawAlbumArt"
+    End If
+done:
+If (pStore Is Nothing) = False Then Set pStore = Nothing
+
+End Function
+Private Function DrawAlbumArt(ByVal pStm As IStream) As Long
+
+done: 
+End Function
+Private Sub DrawWicImage()
+    If pFrame Is Nothing Then Exit Sub
+    If mShowCover = False Then Exit Sub
+    Dim rcClient As RECT, drawRect As RECT
+    Dim cx As Long, cy As Long, dx As Long, dy As Long
+    GetClientRect Picture1.hWnd, rcClient
+    ' rcClient.Right = Picture1.ScaleWidth
+    ' rcClient.Bottom = Picture1.ScaleHeight
+    pFrame.GetSize cx, cy
+    DebugLog "DrawWicImage " & cx & ", " & cy & ", " & rcClient.Right & ", " & rcClient.Bottom
+    'borrowed from ucAniGifEx; scales and centers an image such that the larger dimension touches
+    'the edges and it's centered along the smaller dimension. 
+    If mLockAR Then
+        Dim aspectRatio As Single
+        aspectRatio = cx / cy
+        Dim newWidth As Single, newHeight As Single
+        If (rcClient.Right > cx) And (rcClient.Bottom > cx) Then
+            'image must be expanded 
+            Dim clientWidth As Single
+            Dim clientHeight As Single
+            clientWidth = rcClient.Right - rcClient.Left
+            clientHeight = rcClient.Bottom - rcClient.Top
+
+            Dim scaleX As Single, scaleY As Single, sScale As Single
+            scaleX = clientWidth / cx
+            scaleY = clientHeight / cy
+            sScale = scaleX
+            If scaleY < scaleX Then sScale = scaleY
+
+            newWidth = cx * sScale
+            newHeight = cy * sScale
+
+            drawRect.Left = (clientWidth - newWidth) / 2
+            drawRect.Top = (clientHeight - newHeight) / 2
+            drawRect.Right = drawRect.Left + newWidth
+            drawRect.Bottom = drawRect.Top + newHeight
+        Else
+            'original handling that works for size <= image size
+            drawRect.Left = (rcClient.Right - cx) / 2
+            drawRect.Top = (rcClient.Bottom - cy) / 2
+            drawRect.Right = drawRect.Left + cx
+            drawRect.Bottom = drawRect.Top + cy
+            
+
+            If (drawRect.Left < 0) Then
+                newWidth = (rcClient.Right)
+                newHeight = newWidth / aspectRatio
+                drawRect.Left = 0
+                drawRect.Top = (rcClient.Bottom - newHeight) / 2
+                drawRect.Right = newWidth
+                drawRect.Bottom = drawRect.Top + newHeight
+            End If
+            If (drawRect.Top < 0) Then
+                newHeight = (rcClient.Bottom)
+                newWidth = newHeight * aspectRatio
+                drawRect.Left = (rcClient.Right - newWidth) / 2
+                drawRect.Top = 0
+                drawRect.Right = drawRect.Left + newWidth
+                drawRect.Bottom = newHeight
+            End If
+        End If
+    Else
+        drawRect = rcClient
+    End If
+    dx = drawRect.Right - drawRect.Left
+    dy = drawRect.Bottom - drawRect.Top
+    DebugLog "DrawWicImage " & cx & "," & cy & "," & dx & "," & dy
+    pFact.CreateBitmapScaler pScaler
+    If pScaler Is Nothing Then
+        DebugLog "No scaler"
+        GoTo done
+    End If
+    pScaler.Initialize pConverter, dx, dy, IIf(mWin10, WICBitmapInterpolationModeHighQualityCubic, WICBitmapInterpolationModeFant)
+    RenderWicImage pScaler, Picture1.hDC, drawRect.Left, drawRect.Top, drawRect.Right, drawRect.Bottom
+done:    
+End Sub
+Private Sub RenderWicImage(pImage As IWICBitmapSource, hDC As LongPtr, x As Long, y As Long, cx As Long, cy As Long)
+    On Error GoTo e0
+    If pImage Is Nothing Then
+        DebugLog "Render: No pImage"
+        Exit Sub
+    End If
+
+    Dim prc As WICRect
+    Dim tBMI As BITMAPINFO
+    Dim hDCScr As LongPtr
+    Dim hDIBBitmap As LongPtr
+    Dim pvImageBits As LongPtr
+    Dim rc As WICRect
+    Dim nImage As Long
+    Dim nStride As Long
+
+    hDCScr = GetDC(0)
+
+    With tBMI.bmiHeader
+        .biSize = LenB(tBMI.bmiHeader)
+        .biWidth = cx
+        .biHeight = -cy
+        .biPlanes = 1
+        .biBitCount = 32
+        .biCompression = BI_RGB
+    End With
+    hDIBBitmap = CreateDIBSection(hDCScr, tBMI, DIB_RGB_COLORS, ByVal VarPtr(pvImageBits), 0&, 0&)
+    If hDIBBitmap Then
+        nStride = DIB_WIDTHBYTES(cx * 32)
+        nImage = nStride * cy
+        pImage.CopyPixels vbNullPtr, nStride, nImage, ByVal pvImageBits
+        DebugLog nStride & "," & nImage
+        Picture1.Cls
+        hBitmapToPictureBox hDC, hDIBBitmap, x, y
+        DeleteObject hDIBBitmap
+        Picture1.Refresh
+    Else
+        DebugLog "Failed to create hDIBBitmap, lastErr=0x" & Hex$(Err.LastDllError)
+    End If
+
+Exit Sub
+
+e0:
+    DebugLog "cWICImage.Render->Error: " & Err.Description & ", 0x" & Hex$(Err.Number)
+End Sub
+
+Public Function LShift(ByVal Value As Long, ByVal Shift As Integer) As Long
+    MakeOnBits
+    If (Value And (2 ^ (31 - Shift))) Then GoTo OverFlow
+    LShift = ((Value And OnBits(31 - Shift)) * (2 ^ Shift))
+    Exit Function
+OverFlow: 
+    LShift = ((Value And OnBits(31 - (Shift + 1))) * (2 ^ (Shift))) Or &H80000000
+End Function
+Private Sub MakeOnBits()
+Dim j As Integer
+Dim v As Long
+For j = 0 To 30
+    v = v + (2 ^ j)
+    OnBits(j) = v
+Next j
+OnBits(j) = v + &H80000000
+End Sub
+Private Function RShift(ByVal Value As Long, _
+   ByVal Shift As Integer) As Long
+    Dim hi As Long
+    MakeOnBits
+    If (Value And &H80000000) Then hi = &H40000000
+  
+    RShift = (Value And &H7FFFFFFE) \ (2 ^ Shift)
+    RShift = (RShift Or (hi \ (2 ^ (Shift - 1))))
+End Function
+Private Function DIB_WIDTHBYTES(bits As Long) As Long
+#If TWINBASIC Then
+Return (((bits + 31) >> 5) << 2)
+#Else
+DIB_WIDTHBYTES = LShift(RShift((bits + 31), 5), 2)
+#End If
+End Function
+Public Sub hBitmapToPictureBox(pictureboxdc As LongPtr, hBitmap As LongPtr, Optional x As Long = 0&, Optional y As Long = 0&)
+    Dim himlBmp As LongPtr
+    Dim tBMP As BITMAP
+    Dim cx As Long, cy As Long
+    Call GetObjectW(hBitmap, LenB(tBMP), tBMP)
+    cx = tBMP.BMWidth
+    cy = tBMP.BMHeight
+    DebugLog "HBMtoPB read dim as " & cx & "x" & cy
+    If cx = 0 Then
+        DebugLog "no width"
+        Exit Sub
+    End If
+    himlBmp = ImageList_Create(cx, cy, ILC_COLOR32, 1, 1)
+
+    ImageList_Add himlBmp, hBitmap, 0&
+    ImageList_Draw himlBmp, 0, pictureboxdc, x, y, ILD_NORMAL
+
+    ImageList_Destroy himlBmp
+End Sub
 Private Function Subclass2(hWnd As LongPtr, lpFN As LongPtr, Optional uId As LongPtr = 0&, Optional dwRefData As LongPtr = 0&) As Boolean
-If uId = 0 Then uId = hWnd
+    If uId = 0 Then uId = hWnd
     Subclass2 = SetWindowSubclass(hWnd, lpFN, uId, dwRefData):      Debug.Assert Subclass2
 End Function
 Private Function UnSubclass2(hWnd As LongPtr, ByVal lpFN As LongPtr, pid As LongPtr) As Boolean
@@ -1003,14 +1606,24 @@ Public Function ucWndProc(ByVal lng_hWnd As LongPtr, ByVal uMsg As Long, ByVal w
             RaiseEvent PlayerKeyUp(CLng(wParam), CTRUE, CIntToUInt(LOWORD(CLng(lParam))), CIntToUInt(HIWORD(CLng(lParam))))
             Exit Function
         Case WM_PAINT
-            OnPaint hWnd
-            Exit Function
+            If mHasVideo Then
+                OnPaint hWnd
+                Exit Function
+            End If
         Case WM_SIZE
-            OnSize hWnd, CLng(wParam), CIntToUInt(LOWORD(CLng(lParam))), CIntToUInt(HIWORD(CLng(lParam)))
-            ' Exit Function
+            If mHasVideo Then
+                OnSize hWnd, CLng(wParam), CIntToUInt(LOWORD(CLng(lParam))), CIntToUInt(HIWORD(CLng(lParam)))
+                ' Exit Function
+            Else
+                Picture1.Width = LOWORD(lParam)
+                Picture1.Height = HIWORD(lParam)
+                DrawWicImage
+            End If
         Case WM_ERASEBKGND
-            ucWndProc = 1
-            Exit Function
+            If mHasVideo Then
+                ucWndProc = 1
+                Exit Function
+            End If
         Case WM_LBUTTONDBLCLK
             If mAllowFullscreen Then
                 DebugLog "Toggle FS"
@@ -1023,8 +1636,22 @@ Public Function ucWndProc(ByVal lng_hWnd As LongPtr, ByVal uMsg As Long, ByVal w
             End If
         Case WM_LBUTTONUP
             RaiseEvent PlayerClick(1)
+        Case WM_LBUTTONDOWN
+            If (mPlayer Is Nothing) = False Then
+                If mAllowClickPause Then
+                    Dim dwState As MFP_MEDIAPLAYER_STATE
+                    mPlayer.GetState dwState
+                    If dwState = MFP_MEDIAPLAYER_STATE_PAUSED Then
+                        Me.Paused = False
+                    ElseIf dwState = MFP_MEDIAPLAYER_STATE_PLAYING Then
+                        Me.Paused = True
+                    End If
+                End If
+            End If
         Case WM_RBUTTONUP
             RaiseEvent PlayerClick(2)
+        Case WM_MOUSEWHEEL
+            RaiseEvent PlayerWheelScroll(GET_WHEEL_DELTA_WPARAM(wParam), GET_KEYSTATE_WPARAM(wParam))
         Case WM_DESTROY
             UnSubclass2 lng_hWnd, AddressOf ucSimplePlayerHelperProc, lng_hWnd
     End Select

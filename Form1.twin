@@ -4,21 +4,62 @@
 Class Form1
 
     Private mFile As String
-    Private bPause As Boolean
     Private mPlay As Boolean
     Private mNoUpdate As Boolean
+    Private mDropScroll As Boolean
     Private bMute As Boolean
+    
+    #If TWINBASIC = 0 Then
+    Private Enum SHACF
+        SHACF_DEFAULT = &H00000000 ' Currently (SHACF_FILESYSTEM | SHACF_URLALL)
+        SHACF_FILESYSTEM = &H00000001 ' This includes the File System as well as the rest of the shell (Desktop\My Computer\Control Panel\)
+        SHACF_URLHISTORY = &H00000002 ' URLs in the User's History
+        SHACF_URLMRU = &H00000004 ' URLs in the User's Recently Used list.
+        SHACF_URLALL = &H00000006 ' (SHACF_URLHISTORY | SHACF_URLMRU)
+        SHACF_USETAB = &H00000008 ' Use the tab to move thru the autocomplete possibilities instead of to the next dialog/window control.
+        SHACF_FILESYS_ONLY = &H00000010 ' Don't AutoComplete non-File System items.
+        SHACF_FILESYS_DIRS = &H00000020 ' Same as SHACF_FILESYS_ONLY except it only includes directories, UNC servers, and UNC server shares.
+        SHACF_VIRTUAL_NAMESPACE = &H00000040 ' Also include the virtual namespace
+        SHACF_AUTOSUGGEST_FORCE_ON = &H10000000 ' Ignore the registry default and force the feature on.
+        SHACF_AUTOSUGGEST_FORCE_OFF = &H20000000 ' Ignore the registry default and force the feature off.
+        SHACF_AUTOAPPEND_FORCE_ON = &H40000000 ' Ignore the registry default and force the feature on. (Also know as AutoComplete)
+        SHACF_AUTOAPPEND_FORCE_OFF = &H80000000 ' Ignore the registry default and force the feature off. (Also know as AutoComplete)
+    End Enum
+    #If VBA7 Then
+    Private Declare PtrSafe Function SHAutoComplete Lib "shlwapi" (ByVal hwndEdit As LongPtr, ByVal dwFlags As SHACF) As Long
+    #Else
+    Private Declare Function SHAutoComplete Lib "shlwapi" (ByVal hwndEdit As Long, ByVal dwFlags As SHACF) As Long  
+    #End If
+    #End If
+    
+    Private Sub Form_Load() Handles Form.Load
+        SHAutoComplete Text1.hWnd, SHACF_FILESYSTEM
+        Dim dwStyle As LongPtr
+        dwStyle = GetWindowLong(Slider1.hWnd, GWL_STYLE)
+        dwStyle = dwStyle Or TBS_DOWNISLEFT
+        SetWindowLong Slider1.hWnd, GWL_STYLE, dwStyle
+        dwStyle = GetWindowLong(Slider2.hWnd, GWL_STYLE)
+        dwStyle = dwStyle Or TBS_DOWNISLEFT
+        SetWindowLong Slider2.hWnd, GWL_STYLE, dwStyle
+        'the above makes using the mousewheel much more natural
+        'and matches how the control does it
+    End Sub
+    
+    Private Sub Check1_Click() Handles Check1.Click
+        ucSimplePlayer1.LoopPlayback = (Check1.Value = vbChecked)
+    End Sub
     
     Private Sub Command1_Click() Handles Command1.Click
         Dim fod As IFileOpenDialog
         Set fod = New FileOpenDialog
         Dim lpAbsPath As LongPtr
         Dim lpPath As LongPtr
+        Dim lpUrl As LongPtr
         Dim siRes As IShellItem
         Dim tFilt() As COMDLG_FILTERSPEC
         ReDim tFilt(1)
         tFilt(0).pszName = StrPtr("Common media files")
-        tFilt(0).pszSpec = StrPtr("*.mp4; *.mkv; *.m2ts; *.avi; *.asf; *.hevc; *.wmv; *.wma; *.mp3; *.m4a; *.m4v; *.mov; *.wav; *.3gp; *.3gpp; *.3gp2; *.3g2; *.aac; *.adts; *.sami; *.smi")
+        tFilt(0).pszSpec = StrPtr("*.mp4; *.mkv; *.m2ts; *.avi; *.asf; *.hevc; *.wmv; *.wma; *.flac; *.mp3; *.m4a; *.m4v; *.mov; *.wav; *.3gp; *.3gpp; *.3gp2; *.3g2; *.aac; *.adts; *.sami; *.smi")
         tFilt(1).pszName = StrPtr("All Files")
         tFilt(1).pszSpec = StrPtr("*.*")
         With fod
@@ -31,12 +72,15 @@ Class Form1
             On Error GoTo 0
             If (siRes Is Nothing) = False Then
                 'siRes.GetDisplayName SIGDN_DESKTOPABSOLUTEPARSING, lpAbsPath
-                siRes.GetDisplayName SIGDN_URL, lpPath
-                mFile = LPWSTRtoStr(lpPath)
-                Text1.Text = mFile
-                ucSimplePlayer1.PlayMediaFile Text1.Text
-                Command3.Caption = "Pause"
-                bPause = False
+                siRes.GetDisplayName SIGDN_URL, lpUrl
+                siRes.GetDisplayName SIGDN_FILESYSPATH, lpPath
+                mFile = LPWSTRtoStr(lpUrl)
+                If lpPath Then
+                    Text1.Text = LPWSTRtoStr(lpPath)
+                Else
+                    Text1.Text = mFile
+                End If
+                ucSimplePlayer1.PlayMediaFile mFile
             End If
             
         End With
@@ -45,11 +89,8 @@ Class Form1
     
     Private Sub Command2_Click() Handles Command2.Click
         ucSimplePlayer1.PlayMediaFile Text1.Text
- 
-        
-        Command3.Caption = "Pause"
-        bPause = False
     End Sub
+    
     Public Function Time2String(ByVal curNanoSec As LongLong, Optional ByVal _
         strTimeFormat As String = "hh:mm:ss") As String
 
@@ -91,6 +132,7 @@ Class Form1
         Label4.Caption = Time2String(cyDuration)
         Dim nSec As LongLong
         nSec = cyDuration / 10000000
+        If nSec < 1 Then nSec = 1
         mPlay = True
         If bMute Then
             ucSimplePlayer1.Muted = True
@@ -98,21 +140,19 @@ Class Form1
            ucSimplePlayer1.Muted = False
         End If
         Slider1.Value = 0
+        ' Debug.Print "Set Slider1.Value=0 in PlaybackStart"
         Slider1.Max = CLng(nSec)
-        Slider1.TickFrequency = nSec / 10
+        Slider1.TickFrequency = CLng(nSec) \ 10
+        Slider1.LargeChange = CLng(nSec) \ 10
         Timer1.Interval = 250
         Timer1.Enabled = True
         ucSimplePlayer1.Volume = Slider2.Value / 100
     End Sub
     
     Private Sub Command3_Click() Handles Command3.Click
-        If bPause Then
-            Command3.Caption = "Pause"
-            bPause = False
+        If ucSimplePlayer1.Paused = True Then
             ucSimplePlayer1.Paused = False
         Else
-            Command3.Caption = "Unpause"
-            bPause = True
             ucSimplePlayer1.Paused = True
         End If
     End Sub
@@ -132,18 +172,43 @@ Class Form1
     
     Private Sub Slider1_Click() Handles Slider1.Click
         If mPlay Then
+            Debug.Print "SetPos Click"
             ucSimplePlayer1.Position = CCur(Slider1.Value) * 1000
+            mDropScroll = True
         End If
-        
     End Sub
-  
+    Private Sub Slider1_Scroll() Handles Slider1.Scroll
+        If mPlay Then
+            If mDropScroll Then
+                mDropScroll = False
+            Else
+                If mNoUpdate = False Then
+                    Debug.Print "SetPos Scroll"
+                    ucSimplePlayer1.Position = CCur(Slider1.Value) * 1000
+                End If
+            End If
+        End If
+    End Sub
     Private Sub Slider1_MouseDown(Button As Integer, Shift As Integer, X As Single, Y As Single) Handles Slider1.MouseDown
         mNoUpdate = True
     End Sub
-    
     Private Sub Slider1_MouseUp(Button As Integer, Shift As Integer, X As Single, Y As Single) Handles Slider1.MouseUp
         mNoUpdate = False
     End Sub
+    
+    Private Sub Slider2_Change() Handles Slider2.Change
+        ucSimplePlayer1.Volume = Slider2.Value / 100
+    End Sub
+    Private Sub Slider2_Scroll() Handles Slider2.Scroll
+        ucSimplePlayer1.Volume = Slider2.Value / 100
+    End Sub
+    Private Sub Slider2_MouseMove(Button As Integer, Shift As Integer, X As Single, Y As Single) Handles Slider2.MouseMove
+        If Button = 1 Then
+            ucSimplePlayer1.Volume = Slider2.Value / 100
+        End If
+    End Sub
+    
+       
     
     Private Sub Command5_Click() Handles Command5.Click
         If ucSimplePlayer1.Rate > 0.24 Then
@@ -171,12 +236,6 @@ Class Form1
         End If
     End Sub
  
-    Private Sub Slider2_MouseMove(Button As Integer, Shift As Integer, X As Single, Y As Single) Handles Slider2.MouseMove
-        If Button = 1 Then
-            ucSimplePlayer1.Volume = Slider2.Value / 100
-        End If
-    End Sub
-    
     Private Sub ucSimplePlayer1_PlayerClick(ByVal Button As Long) Handles ucSimplePlayer1.PlayerClick
         If Button = 2 Then
             Dim nVid As Long, nAud As Long
@@ -311,7 +370,22 @@ Class Form1
         End If
     End Sub
     
- 
+    Private Sub ucSimplePlayer1_PlayerWheelScroll(ByVal delta As Integer, ByVal keyState As Integer) Handles ucSimplePlayer1.PlayerWheelScroll
+        If delta < 0 Then
+            If Slider2.Value >= 5 Then
+                Slider2.Value = Slider2.Value - 5
+            ElseIf Slider2.Value > 0 Then '1-4, set to 0
+                Slider2.Value = 0
+            End If
+        Else
+            If Slider2.Value <= 95 Then
+                Slider2.Value = Slider2.Value + 5
+            ElseIf Slider2.Value > 95 Then '96-99, set to 100
+                Slider2.Value = 100
+            End If
+        End If
+        ucSimplePlayer1.Volume = Slider2.Value / 100
+    End Sub
     
  
 End Class

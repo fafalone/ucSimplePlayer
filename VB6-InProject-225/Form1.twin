@@ -1,0 +1,317 @@
+[Description("ucSimplePlayer Demo Form")]
+[FormDesignerId("EB7457EF-9650-4AA9-A5C5-79CB98B32DCE")]
+[PredeclaredId]
+Class Form1
+
+    Private mFile As String
+    Private bPause As Boolean
+    Private mPlay As Boolean
+    Private mNoUpdate As Boolean
+    Private bMute As Boolean
+    
+    Private Sub Command1_Click() Handles Command1.Click
+        Dim fod As IFileOpenDialog
+        Set fod = New FileOpenDialog
+        Dim lpAbsPath As LongPtr
+        Dim lpPath As LongPtr
+        Dim siRes As IShellItem
+        Dim tFilt() As COMDLG_FILTERSPEC
+        ReDim tFilt(1)
+        tFilt(0).pszName = StrPtr("Common media files")
+        tFilt(0).pszSpec = StrPtr("*.mp4; *.mkv; *.m2ts; *.avi; *.asf; *.hevc; *.wmv; *.wma; *.mp3; *.m4a; *.m4v; *.mov; *.wav; *.3gp; *.3gpp; *.3gp2; *.3g2; *.aac; *.adts; *.sami; *.smi")
+        tFilt(1).pszName = StrPtr("All Files")
+        tFilt(1).pszSpec = StrPtr("*.*")
+        With fod
+            .SetTitle "Open media file..."
+            .SetOptions FOS_PATHMUSTEXIST
+            .SetFileTypes 2, VarPtr(tFilt(0))
+            On Error Resume Next
+            .Show Me.hWnd
+            .GetResult siRes
+            On Error GoTo 0
+            If (siRes Is Nothing) = False Then
+                'siRes.GetDisplayName SIGDN_DESKTOPABSOLUTEPARSING, lpAbsPath
+                siRes.GetDisplayName SIGDN_URL, lpPath
+                mFile = LPWSTRtoStr(lpPath)
+                Text1.Text = mFile
+                ucSimplePlayer1.PlayMediaFile Text1.Text
+                Command3.Caption = "Pause"
+                bPause = False
+            End If
+            
+        End With
+        
+    End Sub
+    
+    Private Sub Command2_Click() Handles Command2.Click
+        ucSimplePlayer1.PlayMediaFile Text1.Text
+ 
+        
+        Command3.Caption = "Pause"
+        bPause = False
+    End Sub
+    Public Function Time2String(ByVal curNanoSec As LongLong, Optional ByVal _
+        strTimeFormat As String = "hh:mm:ss") As String
+
+        On Error Resume Next
+
+        Dim lngHour As Long
+        Dim lngMinu As Long
+        Dim dblSeco As Double
+
+        dblSeco = CDbl(curNanoSec / 10000000)
+
+        lngHour = dblSeco \ 3600
+        dblSeco = dblSeco Mod 3600
+        lngMinu = dblSeco \ 60
+        dblSeco = dblSeco Mod 60
+
+        Time2String = Format$(TimeSerial(lngHour, lngMinu, dblSeco), strTimeFormat)
+
+    End Function
+    Public Function TimeSec2String(ByVal dblSeco As Double, Optional ByVal _
+        strTimeFormat As String = "hh:mm:ss") As String
+
+        On Error Resume Next
+
+        Dim lngHour As Long
+        Dim lngMinu As Long
+ 
+
+        lngHour = dblSeco \ 3600
+        dblSeco = dblSeco Mod 3600
+        lngMinu = dblSeco \ 60
+        dblSeco = dblSeco Mod 60
+
+        TimeSec2String = Format$(TimeSerial(lngHour, lngMinu, dblSeco), strTimeFormat)
+
+    End Function
+ 
+    Private Sub ucSimplePlayer1_PlaybackStart(ByVal cyDuration As LongLong) Handles ucSimplePlayer1.PlaybackStart
+        Label4.Caption = Time2String(cyDuration)
+        Dim nSec As LongLong
+        nSec = cyDuration / 10000000
+        mPlay = True
+        If bMute Then
+            ucSimplePlayer1.Muted = True
+        Else
+           ucSimplePlayer1.Muted = False
+        End If
+        Slider1.Value = 0
+        Slider1.Max = CLng(nSec)
+        Slider1.TickFrequency = nSec / 10
+        Timer1.Interval = 250
+        Timer1.Enabled = True
+        ucSimplePlayer1.Volume = Slider2.Value / 100
+    End Sub
+    
+    Private Sub Command3_Click() Handles Command3.Click
+        If bPause Then
+            Command3.Caption = "Pause"
+            bPause = False
+            ucSimplePlayer1.Paused = False
+        Else
+            Command3.Caption = "Unpause"
+            bPause = True
+            ucSimplePlayer1.Paused = True
+        End If
+    End Sub
+    
+    Private Sub Command4_Click() Handles Command4.Click
+        Timer1.Enabled = False
+        mPlay = False
+        ucSimplePlayer1.StopPlayback
+    End Sub
+    
+    Private Sub Timer1_Timer() Handles Timer1.Timer
+        Dim nSec As Currency
+        nSec = ucSimplePlayer1.Position / 1000
+        If mNoUpdate = False Then Slider1.Value = nSec
+        Label1.Caption = TimeSec2String(nSec)
+    End Sub
+    
+    Private Sub Slider1_Click() Handles Slider1.Click
+        If mPlay Then
+            ucSimplePlayer1.Position = CCur(Slider1.Value) * 1000
+        End If
+        
+    End Sub
+  
+    Private Sub Slider1_MouseDown(Button As Integer, Shift As Integer, X As Single, Y As Single) Handles Slider1.MouseDown
+        mNoUpdate = True
+    End Sub
+    
+    Private Sub Slider1_MouseUp(Button As Integer, Shift As Integer, X As Single, Y As Single) Handles Slider1.MouseUp
+        mNoUpdate = False
+    End Sub
+    
+    Private Sub Command5_Click() Handles Command5.Click
+        If ucSimplePlayer1.Rate > 0.24 Then
+            ucSimplePlayer1.Rate = ucSimplePlayer1.Rate - 0.25
+        End If
+    End Sub
+    
+    Private Sub Command6_Click() Handles Command6.Click
+        ucSimplePlayer1.Rate = ucSimplePlayer1.Rate + 0.25
+    End Sub
+    
+    Private Sub Command7_Click() Handles Command7.Click
+        ucSimplePlayer1.FrameStep
+    End Sub
+    
+    Private Sub Image1_Click() Handles Image1.Click
+        If ucSimplePlayer1.Muted Then
+            ucSimplePlayer1.Muted = False
+            Image1.Picture = Image3.Picture
+            bMute = False
+        Else
+            ucSimplePlayer1.Muted = True
+            Image1.Picture = Image2.Picture
+            bMute = True
+        End If
+    End Sub
+ 
+    Private Sub Slider2_MouseMove(Button As Integer, Shift As Integer, X As Single, Y As Single) Handles Slider2.MouseMove
+        If Button = 1 Then
+            ucSimplePlayer1.Volume = Slider2.Value / 100
+        End If
+    End Sub
+    
+    Private Sub ucSimplePlayer1_PlayerClick(ByVal Button As Long) Handles ucSimplePlayer1.PlayerClick
+        If Button = 2 Then
+            Dim nVid As Long, nAud As Long
+            Dim sVidL() As String, sVidN() As String
+            Dim sAudL() As String, sAudN() As String
+            ucSimplePlayer1.GetVideoStreams sVidN, sVidL, nVid
+            ucSimplePlayer1.GetAudioStreams sAudN, sAudL, nAud
+            Dim hMenu As LongPtr
+            Dim hSubV As LongPtr, hSubA As LongPtr
+            hMenu = CreatePopupMenu()
+            hSubV = CreateMenu()
+            hSubA = CreateMenu()
+            Dim i As Long
+            Dim mii As MENUITEMINFO
+            mii.cbSize = LenB(mii)
+            With mii
+                .fMask = MIIM_ID Or MIIM_STRING Or MIIM_SUBMENU
+                If nVid = 0 Then
+                    .fMask = .fMask Or MIIM_STATE
+                    .fState = MFS_DISABLED
+                End If
+                .wID = 1000
+                .dwTypeData = StrPtr("Video tracks")
+                .cch = Len("Video tracks")
+                .hSubMenu = hSubV
+                Call InsertMenuItem(hMenu, 0, True, mii)
+                
+                .fMask = MIIM_ID Or MIIM_STRING Or MIIM_SUBMENU
+                If nAud = 0 Then
+                    .fMask = .fMask Or MIIM_STATE
+                    .fState = MFS_DISABLED
+                End If
+                .wID = 1001
+                .dwTypeData = StrPtr("Audio tracks")
+                .cch = Len("Audio tracks")
+                .hSubMenu = hSubA
+                Call InsertMenuItem(hMenu, 1, True, mii)
+                
+                .fMask = MIIM_ID Or MIIM_TYPE
+                .fType = MFT_SEPARATOR
+                .wID = 0
+                Call InsertMenuItem(hMenu, 2, True, mii)
+                
+                .fMask = MIIM_ID Or MIIM_STRING
+                .wID = 1003
+                .dwTypeData = StrPtr("Lock aspect ratio")
+                .cch = Len("Lock aspect ratio")
+                If ucSimplePlayer1.PreserveAspectRatio Then
+                    .fMask = .fMask Or MIIM_STATE
+                    .fState = MFS_CHECKED
+                End If
+                Call InsertMenuItem(hMenu, 3, True, mii)
+                
+                .fMask = MIIM_ID Or MIIM_STRING
+                .wID = 1002
+                If ucSimplePlayer1.Fullscreen Then
+                    .dwTypeData = StrPtr("Exit fullscreen")
+                    .cch = Len("Exit fullscreen")
+                Else
+                    .dwTypeData = StrPtr("Enter fullscreen")
+                    .cch = Len("Enter fullscreen")
+                End If
+                Call InsertMenuItem(hMenu, 4, True, mii)
+            End With
+            
+            Dim sLbl As String
+            'Populate track menus
+            If nVid > 0 Then
+                For i = 0 To nVid - 1
+                    With mii
+                        .fMask = MIIM_ID Or MIIM_STRING
+                        .wID = 2001 + i
+                        sLbl = "(" & CStr(i + 1) & ") [" & IIf(sVidL(i) = "", "unk", sVidL(i)) & "]: " & IIf(sVidN(i) = "", "Video track #" & CStr(i + 1), sVidN(i))
+                        .dwTypeData = StrPtr(sLbl)
+                        .cch = Len(sLbl)
+
+                        Call InsertMenuItem(hSubV, i, True, mii)
+                    End With
+                Next
+                CheckMenuRadioItem hSubV, 0, i, ucSimplePlayer1.ActiveVideoStream - 1, MF_BYPOSITION
+            End If
+            If nAud	> 0 Then
+                For i = 0 To nAud - 1
+                    With mii
+                        .fMask = MIIM_ID Or MIIM_STRING
+                        .wID = 9001 + i
+                        sLbl = "(" & CStr(i + 1) & ") [" & IIf(sAudL(i) = "", "unk", sAudL(i)) & "]: " & IIf(sAudN(i) = "", "Audio track #" & CStr(i + 1), sAudN(i))
+                        .dwTypeData = StrPtr(sLbl)
+                        .cch = Len(sLbl)
+
+                        Call InsertMenuItem(hSubA, i, True, mii)
+                    End With
+                Next
+                CheckMenuRadioItem hSubA, 0, i, ucSimplePlayer1.ActiveAudioStream - 1, MF_BYPOSITION
+            End If
+            
+            Dim pt As POINT
+            GetCursorPos pt
+            Dim idCmd As Long
+            Dim n As Long
+            idCmd = TrackPopupMenu(hMenu, TPM_LEFTBUTTON Or TPM_RIGHTBUTTON Or TPM_LEFTALIGN Or TPM_TOPALIGN Or TPM_HORIZONTAL Or TPM_RETURNCMD, pt.x, pt.y, 0, Me.hWnd, 0)
+            
+            'Be careful adding commands with how this is processed
+            Select Case idCmd
+                Case 1002
+                    If ucSimplePlayer1.Fullscreen Then
+                        ucSimplePlayer1.Fullscreen = False
+                    Else
+                        ucSimplePlayer1.Fullscreen = True
+                    End If
+                    
+                Case 1003
+                    If ucSimplePlayer1.PreserveAspectRatio Then
+                        ucSimplePlayer1.PreserveAspectRatio = False
+                    Else
+                        ucSimplePlayer1.PreserveAspectRatio = True
+                    End If
+                    
+                Case Is > 9000 'audio
+                    n = idCmd - 9000
+                    If n <> ucSimplePlayer1.ActiveAudioStream Then
+                        ucSimplePlayer1.ActiveAudioStream = n
+                    End If
+                    
+                Case Is > 2000 'video
+                    n = idCmd - 2000
+                    If n <> ucSimplePlayer1.ActiveVideoStream Then
+                        ucSimplePlayer1.ActiveVideoStream = n
+                    End If
+            End Select
+            
+        End If
+    End Sub
+    
+ 
+    
+ 
+End Class
