@@ -99,6 +99,9 @@ Tested in MS Office Excel 2021 64bit.
 
 ![image](https://github.com/user-attachments/assets/fdd63795-5f52-48a2-9750-60b7d0f15b1f)
 
+![image](https://github.com/user-attachments/assets/b75f0379-c886-4633-b5a7-bdf54e32151d)
+
+
 **Compiling without admin**\
 Admin is required for the OCX for VB6 since it must install to HKLM. But for VBA/twinBASIC you don't need it: From the Project menu, open Project Settings, find the "Project: Register DLLs to HKEY_LOCAL_MACHINE" option and switch it to No. You'll no longer need admin.
 
