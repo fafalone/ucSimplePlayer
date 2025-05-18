@@ -20,12 +20,16 @@ All the basic features are covered:
 - Loop
 - Choose audio/video track
 
-The VB6 project file and ucSimplePlayDemo.twinproj have basic players implementing the control and its functions using the control as a UserControl.
+**ucSimplePlayerDemo.twinproj** - Basic player implementing the control and its functions using the control as a UserControl, no OCX. *This is the recommended version for twinBASIC*.
   
-ucSimplePlayer.twinproj is to compile an OCX which you could then use in VB6/tB plus other hosts like VBA 32bit/64bit.
+**ucSimplePlayer.twinproj** - To compile an OCX which you could then use in VB6/tB plus other hosts like VBA 32bit/64bit.
 
-It will automatically toggle full screen when you double click the video, to disable this change `.AllowFullscreen` to `False`. You can still use the manual toggle (`.Fullscreen = True/False`),
+**ucSimplePlayerDemo.twinproj** - Basic player hosting the OCX. Can run both the 32bit and 64bit OCX.
 
+**ucSimplePlayerDemoOCX.vbp** - Basic player hosting the OCX for VB6. 
+
+The player in ucSimplePlayerDemo.twinproj is nicer with more features than the OCX host versions.
+ 
 >[!NOTE]
 >The VB6 in-project version of the latest update is delayed to unresolved issues with displaying album art. If you need VB6 support, the 32bit OCX has been tested to work in it, or use the old v2.2.5 version.
 
