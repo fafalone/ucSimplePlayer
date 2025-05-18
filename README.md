@@ -26,6 +26,9 @@ ucSimplePlayer.twinproj is to compile an OCX which you could then use in VB6/tB 
 
 It will automatically toggle full screen when you double click the video, to disable this change `.AllowFullscreen` to `False`. You can still use the manual toggle (`.Fullscreen = True/False`),
 
+>[!NOTE]
+>The VB6 in-project version of the latest update is delayed to unresolved issues with displaying album art. If you need VB6 support, the 32bit OCX has been tested to work in it, or use the old v2.2.5 version.
+
 
 **UPDATE - v2.3.10 (18 May 2025)**
 ```
