@@ -1,4 +1,4 @@
-# ucSimplePlayer v2.2.5
+# ucSimplePlayer v2.3.10
 Simple video player UserControl/ActiveX Control
 
 ![image](https://github.com/user-attachments/assets/490b68f4-1ff7-444a-b5ed-31d10542ddc8)
@@ -17,12 +17,48 @@ All the basic features are covered:
 - Playback rate
 - Duration
 - Fullscreen
+- Loop
+- Choose audio/video track
 
 The VB6 project file and ucSimplePlayDemo.twinproj have basic players implementing the control and its functions using the control as a UserControl.
   
 ucSimplePlayer.twinproj is to compile an OCX which you could then use in VB6/tB plus other hosts like VBA 32bit/64bit.
 
 It will automatically toggle full screen when you double click the video, to disable this change `.AllowFullscreen` to `False`. You can still use the manual toggle (`.Fullscreen = True/False`),
+
+
+**UPDATE - v2.3.10 (18 May 2025)**
+```
+'Version 2.3.10 (18 May 2025)
+'-Album cover is now displayed when you play audio files; you can set
+'   ShowAlbumArt to False to disable this display.
+'-A default image will be shown as album art if none could be loaded from
+'   the file, to disable, set UseDefaultAlbumArt to False, or to customize
+'   it, use SetDefaultAlbumArt and pass a byte array of an image file that
+'   is compatible with WIC.
+'   Tip: You can also use this as an audio only player by setting Visible
+'        to False
+'-Added LoopPlayback property to automatically loop playback of the current
+'   item. The PlaybackEnded and a new start event are still fired at the end
+'   of each loop.
+'-Added PlayerWheelScroll event. The demo app now shows how to use this
+'   to adjust the volume.
+'-Player now pauses/unpauses on single left click. Set AllowPauseOnClick to
+'   False to disable this behavior.
+'-Properties are now either hidden from the designer (settable at run
+'   time only), or properly saved/loaded. Ones still visible in the designer
+'   now have descriptions.
+'-Added HasVideo property get. 
+'-Switched CopyMemory variant hack to more proper PropVariantClear.
+'-(Bug fix) Duration and playback position not working when an audio-
+'           only file was played.
+'-(Bug fix) Setting Paused to False did not change the status returned by
+'           that property.
+'-(Demo) Added FLAC to Open Dialog types.
+'-(Demo) File text now also has autocomplete.
+'-(Demo) Click to pause/unpause.
+'-(Demo) Support for mousewheel on volume and position sliders.
+```
 
 **UPDATE - v2.2.5 (29 Mar 2025)**
 ```
