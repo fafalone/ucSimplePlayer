@@ -8,7 +8,7 @@ Class ucSimplePlayer
 Option Explicit
 #Const DEBUGBLD = 0
 '**********************************************************************
-'ucSimplePlayer v2.3.10
+'ucSimplePlayer v2.4.11
 'by Jon Johnson
 '
 'This is a simple video player control loosely based on the SimplePlay
@@ -21,6 +21,13 @@ Option Explicit
 '
 'Requirements:
 '-Windows 7 or newer
+'
+'Version 2.4.11 (19 May 2025)
+'-Now using AlphaBlend instead of ImageList_Draw to render album art, as
+'   a partial workaround to the VB6 issue. (Thanks to VanGoghGaming for tip)
+'-Now using SHCreateMemStream instead of CreateStreamOnHGlobal to satisfy
+'   VanGoghGaming.
+'-(Bug fix) Double-free bug could cause crash on exit in x64.
 '
 'Version 2.3.10 (18 May 2025)
 '-Album cover is now displayed when you play audio files; you can set
@@ -125,6 +132,7 @@ Private mLastPos As Variant
 Private mSetPos As Variant
 Private mLoop As Boolean
 Private mWin10 As Boolean 'Win10+
+Private mScPb As Boolean
 Private Type StreamList
     nVid As Long 'Number of video streams
     idxVidActive As Long 'Active video stream index
@@ -294,6 +302,14 @@ Private Enum GdiDIBitsColorUse
     DIB_RGB_COLORS = 0 '/* color table in RGBs */
     DIB_PAL_COLORS = 1 '/* color table in palette indices */
 End Enum
+Private Type BLENDFUNCTION
+    BlendOp As Byte
+    BlendFlags As Byte
+    SourceConstantAlpha As Byte
+    AlphaFormat As Byte
+End Type
+Private Const AC_SRC_OVER  As Byte = 0
+Private Const AC_SRC_ALPHA As Byte = 01
 #If VBA7 Then
 Private Declare PtrSafe Function BeginPaint Lib "user32" (ByVal hWnd As LongPtr, lpPaint As PAINTSTRUCT) As LongPtr
 Private Declare PtrSafe Function EndPaint Lib "user32" (ByVal hWnd As LongPtr, lpPaint As PAINTSTRUCT) As BOOL
@@ -320,10 +336,10 @@ Private Declare PtrSafe Function GetDC Lib "user32" (ByVal hWnd As LongPtr) As L
 Private Declare PtrSafe Function CreateDIBSection Lib "gdi32" (ByVal hDC As LongPtr, pbmi As Any, ByVal usage As Long, ByRef ppvBits As Any, ByVal hSection As LongPtr, ByVal offset As Long) As LongPtr
 Private Declare PtrSafe Function DeleteObject Lib "gdi32" (ByVal hObject As LongPtr) As BOOL
 Private Declare PtrSafe Function GetObjectW Lib "gdi32" (ByVal hObject As LongPtr, ByVal nCount As Long, lpObject As Any) As Long
-Private Declare PtrSafe Function ImageList_Create Lib "comctl32" (ByVal cx As Long, ByVal cy As Long, ByVal Flags As IL_CreateFlags, ByVal cInitial As Long, ByVal cGrow As Long) As LongPtr
-Private Declare PtrSafe Function ImageList_Destroy Lib "comctl32" (ByVal himl As LongPtr) As Long
-Private Declare PtrSafe Function ImageList_Add Lib "comctl32" (ByVal himl As LongPtr, ByVal hbmImage As LongPtr, ByVal hBMMask As LongPtr) As Long
-Private Declare PtrSafe Function ImageList_Draw Lib "comctl32" (ByVal himl As LongPtr, ByVal i As Long, ByVal hdcDst As LongPtr, ByVal X As Long, ByVal Y As Long, ByVal fStyle As IMAGELISTDRAWFLAGS) As Long
+Private Declare PtrSafe Function CreateCompatibleDC Lib "gdi32" (ByVal hDC As LongPtr) As LongPtr
+Private Declare PtrSafe Function SelectObject Lib "gdi32" (ByVal hDC As LongPtr, ByVal hObject As LongPtr) As LongPtr
+Private Declare PtrSafe Function AlphaBlend Lib "Msimg32.dll" (ByVal hdcDest As LongPtr, ByVal xoriginDest As Long, ByVal yoriginDest As Long, ByVal wDest As Long, ByVal hDest As Long, ByVal hdcSrc As LongPtr, ByVal xoriginSrc As Long, ByVal yoriginSrc As Long, ByVal wSrc As Long, ByVal hSrc As Long, ByVal ftn As Long) As BOOL
+Private Declare PtrSafe Function DeleteDC Lib "gdi32" (ByVal hDC As LongPtr) As BOOL
 #Else
 Private Declare Function BeginPaint Lib "user32" (ByVal hWnd As LongPtr, lpPaint As PAINTSTRUCT) As LongPtr
 Private Declare Function EndPaint Lib "user32" (ByVal hWnd As LongPtr, lpPaint As PAINTSTRUCT) As BOOL
@@ -349,10 +365,10 @@ Private Declare Function CreateDIBSection Lib "gdi32" (ByVal hDC As LongPtr, pbm
 Private Declare Function GetDC Lib "user32" (ByVal hWnd As LongPtr) As LongPtr
 Private Declare Function DeleteObject Lib "gdi32" (ByVal hObject As LongPtr) As BOOL
 Private Declare Function GetObjectW Lib "gdi32" (ByVal hObject As LongPtr, ByVal nCount As Long, lpObject As Any) As Long
-Private Declare Function ImageList_Create Lib "comctl32" (ByVal cx As Long, ByVal cy As Long, ByVal Flags As IL_CreateFlags, ByVal cInitial As Long, ByVal cGrow As Long) As LongPtr
-Private Declare Function ImageList_Destroy Lib "comctl32" (ByVal himl As LongPtr) As Long
-Private Declare Function ImageList_Add Lib "comctl32" (ByVal himl As LongPtr, ByVal hbmImage As LongPtr, ByVal hBMMask As LongPtr) As Long
-Private Declare Function ImageList_Draw Lib "comctl32" (ByVal himl As LongPtr, ByVal i As Long, ByVal hdcDst As LongPtr, ByVal X As Long, ByVal Y As Long, ByVal fStyle As IMAGELISTDRAWFLAGS) As Long
+Private Declare Function CreateCompatibleDC Lib "gdi32" (ByVal hDC As LongPtr) As LongPtr
+Private Declare Function SelectObject Lib "gdi32" (ByVal hDC As LongPtr, ByVal hObject As LongPtr) As LongPtr
+Private Declare Function AlphaBlend Lib "Msimg32.dll" (ByVal hdcDest As LongPtr, ByVal xoriginDest As Long, ByVal yoriginDest As Long, ByVal wDest As Long, ByVal hDest As Long, ByVal hdcSrc As LongPtr, ByVal xoriginSrc As Long, ByVal yoriginSrc As Long, ByVal wSrc As Long, ByVal hSrc As Long, ByVal ftn As Long) As BOOL
+Private Declare Function DeleteDC Lib "gdi32" (ByVal hDC As LongPtr) As BOOL
 #End If
 #If Win64 Then
 Private Const PTR_SIZE = 8
@@ -525,6 +541,9 @@ Private Sub UserControl_Initialize() Handles UserControl.Initialize
     If dwMajor >= 10 Then mWin10 = True
 End Sub
 Private Sub UserControl_Terminate() Handles UserControl.Terminate
+    If mScPb Then
+        UnSubclass2 Picture1.hWnd, AddressOf ucSimplePlayerHelperProc, Picture1.hWnd
+    End If
     If (mPlayer Is Nothing) = False Then
         mPlayer.Shutdown
     End If
@@ -1110,6 +1129,7 @@ Private Sub OnMediaItemSet(pEvent As MFP_MEDIAITEM_SET_EVENT)
         If Picture1.Visible = True Then
             Picture1.Visible = False
             UnSubclass2 Picture1.hWnd, AddressOf ucSimplePlayerHelperProc, Picture1.hWnd
+            mScPb = False
         End If
         Dim sz As SIZE
         mPlayer.GetNativeVideoSize mVidSize, sz
@@ -1129,6 +1149,7 @@ Private Sub OnMediaItemSet(pEvent As MFP_MEDIAITEM_SET_EVENT)
             DebugLog "OnSet " & UserControl.ScaleWidth & ", " & UserControl.ScaleHeight & ", " & rcCur.Right & ", " & rcCur.Bottom & ", " & Picture1.Width & ", " & Picture1.Height
             Picture1.Cls
             LoadAlbumArt pEvent.pMediaItem
+            mScPb = True
             Subclass2 Picture1.hWnd, AddressOf ucSimplePlayerHelperProc, Picture1.hWnd, ObjPtr(Me)
         End If
     End If
@@ -1374,7 +1395,11 @@ Private Function LoadAlbumArt(ByVal pItem As IMFPMediaItem) As Long
         If mUseDefCover Then
             If mDefCover = 0 Then
                 Dim bt() As Byte
+                #If TWINBASIC Then
                 bt = LoadResData(201, "PNG")
+                #Else
+                bt = LoadResData(201, "CUSTOM")
+                #End If
                 If UBound(bt) Then
                     mDefCover = GlobalAlloc(GPTR, UBound(bt) + 1)
                     If mDefCover Then
@@ -1382,7 +1407,7 @@ Private Function LoadAlbumArt(ByVal pItem As IMFPMediaItem) As Long
                     End If
                 End If
             End If
-            Set pStm = CreateStreamOnHGlobal(mDefCover, CTRUE)
+            Set pStm = SHCreateMemStream(ByVal mDefCover, UBound(bt) + 1)
         End If
     End If
     If (pStm Is Nothing) = False Then
@@ -1411,10 +1436,6 @@ Private Function LoadAlbumArt(ByVal pItem As IMFPMediaItem) As Long
 done:
 If (pStore Is Nothing) = False Then Set pStore = Nothing
 
-End Function
-Private Function DrawAlbumArt(ByVal pStm As IStream) As Long
-
-done: 
 End Function
 Private Sub DrawWicImage()
     If pFrame Is Nothing Then Exit Sub
@@ -1504,12 +1525,12 @@ Private Sub RenderWicImage(pImage As IWICBitmapSource, hDC As LongPtr, x As Long
     Dim hDCScr As LongPtr
     Dim hDIBBitmap As LongPtr
     Dim pvImageBits As LongPtr
-    Dim rc As WICRect
     Dim nImage As Long
     Dim nStride As Long
-
-    hDCScr = GetDC(0)
-
+    Dim hBmpOld As LongPtr
+    
+    hDCScr = CreateCompatibleDC(hDC)
+    
     With tBMI.bmiHeader
         .biSize = LenB(tBMI.bmiHeader)
         .biWidth = cx
@@ -1520,13 +1541,25 @@ Private Sub RenderWicImage(pImage As IWICBitmapSource, hDC As LongPtr, x As Long
     End With
     hDIBBitmap = CreateDIBSection(hDCScr, tBMI, DIB_RGB_COLORS, ByVal VarPtr(pvImageBits), 0&, 0&)
     If hDIBBitmap Then
+        hBmpOld = SelectObject(hDCScr, hDIBBitmap)
         nStride = DIB_WIDTHBYTES(cx * 32)
         nImage = nStride * cy
         pImage.CopyPixels vbNullPtr, nStride, nImage, ByVal pvImageBits
         DebugLog nStride & "," & nImage
         Picture1.Cls
-        hBitmapToPictureBox hDC, hDIBBitmap, x, y
+        ' hBitmapToPictureBox hDC, hDIBBitmap, x, y
+        Dim bf As BLENDFUNCTION, lbf As Long
+        With bf
+            .BlendOp = AC_SRC_OVER
+            .BlendFlags = 0
+            .SourceConstantAlpha = 255
+            .AlphaFormat = AC_SRC_ALPHA
+        End With
+        CopyMemory lbf, bf, LenB(lbf)
+        AlphaBlend hDC, x, y, cx, cy, hDCScr, 0, 0, cx, cy, lbf
+        SelectObject hDCScr, hBmpOld
         DeleteObject hDIBBitmap
+        DeleteDC hDCScr
         Picture1.Refresh
     Else
         DebugLog "Failed to create hDIBBitmap, lastErr=0x" & Hex$(Err.LastDllError)
@@ -1571,25 +1604,6 @@ Return (((bits + 31) >> 5) << 2)
 DIB_WIDTHBYTES = LShift(RShift((bits + 31), 5), 2)
 #End If
 End Function
-Public Sub hBitmapToPictureBox(pictureboxdc As LongPtr, hBitmap As LongPtr, Optional x As Long = 0&, Optional y As Long = 0&)
-    Dim himlBmp As LongPtr
-    Dim tBMP As BITMAP
-    Dim cx As Long, cy As Long
-    Call GetObjectW(hBitmap, LenB(tBMP), tBMP)
-    cx = tBMP.BMWidth
-    cy = tBMP.BMHeight
-    DebugLog "HBMtoPB read dim as " & cx & "x" & cy
-    If cx = 0 Then
-        DebugLog "no width"
-        Exit Sub
-    End If
-    himlBmp = ImageList_Create(cx, cy, ILC_COLOR32, 1, 1)
-
-    ImageList_Add himlBmp, hBitmap, 0&
-    ImageList_Draw himlBmp, 0, pictureboxdc, x, y, ILD_NORMAL
-
-    ImageList_Destroy himlBmp
-End Sub
 Private Function Subclass2(hWnd As LongPtr, lpFN As LongPtr, Optional uId As LongPtr = 0&, Optional dwRefData As LongPtr = 0&) As Boolean
     If uId = 0 Then uId = hWnd
     Subclass2 = SetWindowSubclass(hWnd, lpFN, uId, dwRefData):      Debug.Assert Subclass2

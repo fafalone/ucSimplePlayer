@@ -130,7 +130,11 @@ Class Form1
  
     Private Sub ucSimplePlayer1_PlaybackStart(ByVal cyDuration As LongLong) Handles ucSimplePlayer1.PlaybackStart
         Label4.Caption = Time2String(cyDuration)
+        #If TWINBASIC Or Win64 Then
         Dim nSec As LongLong
+        #Else
+        Dim nSec as Currency
+        #End If
         nSec = cyDuration / 10000000
         If nSec < 1 Then nSec = 1
         mPlay = True
