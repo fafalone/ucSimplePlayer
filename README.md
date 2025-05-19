@@ -1,4 +1,4 @@
-# ucSimplePlayer v2.4.11
+# ucSimplePlayer v2.4.12
 Simple video player UserControl/ActiveX Control
 
 ![image](https://github.com/user-attachments/assets/490b68f4-1ff7-444a-b5ed-31d10542ddc8)
@@ -33,6 +33,12 @@ The player in ucSimplePlayerDemo.twinproj is nicer with more features than the O
 >[!NOTE]
 >The VB6 in-project version of the latest update is delayed to unresolved issues with displaying album art. If you need VB6 support, the 32bit OCX has been tested to work in it, or use the old v2.2.5 version.
 
+**UPDATE - v2.4.12 (19 May 2025)** (Source only update; precompiled binaries need no updates)
+```
+'Version 2.4.12 (19 May 2025)
+'-Changes to make VB6 version finally work.  (Thanks again to VanGoghGaming 
+'   for help with this; graphics not my forté.)
+```
 
 **UPDATE - v2.4.11 (19 May 2025)**
 ```
