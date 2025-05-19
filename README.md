@@ -1,4 +1,4 @@
-# ucSimplePlayer v2.3.10
+# ucSimplePlayer v2.4.11
 Simple video player UserControl/ActiveX Control
 
 ![image](https://github.com/user-attachments/assets/490b68f4-1ff7-444a-b5ed-31d10542ddc8)
@@ -33,6 +33,16 @@ The player in ucSimplePlayerDemo.twinproj is nicer with more features than the O
 >[!NOTE]
 >The VB6 in-project version of the latest update is delayed to unresolved issues with displaying album art. If you need VB6 support, the 32bit OCX has been tested to work in it, or use the old v2.2.5 version.
 
+
+**UPDATE - v2.4.11 (19 May 2025)**
+```
+'Version 2.4.11 (19 May 2025)
+'-Now using AlphaBlend instead of ImageList_Draw to render album art, as
+'   a partial workaround to the VB6 issue. (Thanks to VanGoghGaming for tip)
+'-Now using SHCreateMemStream instead of CreateStreamOnHGlobal to satisfy
+'   VanGoghGaming.
+'-(Bug fix) Double-free bug could cause crash on exit in x64.
+```
 
 **UPDATE - v2.3.10 (18 May 2025)**
 ```
