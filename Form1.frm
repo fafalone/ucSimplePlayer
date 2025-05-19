@@ -1,6 +1,5 @@
 VERSION 5.00
 Object = "{6B7E6392-850A-101B-AFC0-4210102A8DA7}#1.5#0"; "comctl32.ocx"
-Object = "{4AD19335-05E8-4F52-AA92-C1FAF1AD8737}#2.3#0"; "ucSimplePlay.ocx"
 Begin VB.Form Form1 
    Caption         =   "ucSimplePlayer Demo"
    ClientHeight    =   6915
@@ -13,15 +12,6 @@ Begin VB.Form Form1
    ScaleMode       =   3  'Pixel
    ScaleWidth      =   671
    StartUpPosition =   3  'Windows Default
-   Begin ucSimplePlay.ucSimplePlayer ucSimplePlayer1 
-      Height          =   5775
-      Left            =   120
-      TabIndex        =   13
-      Top             =   1080
-      Width           =   9855
-      _ExtentX        =   17383
-      _ExtentY        =   10186
-   End
    Begin VB.Timer Timer1 
       Left            =   3600
       Top             =   600
@@ -30,9 +20,18 @@ Begin VB.Form Form1
       Caption         =   "Frame Step"
       Height          =   255
       Left            =   8760
-      TabIndex        =   12
+      TabIndex        =   13
       Top             =   120
       Width           =   975
+   End
+   Begin ucSimplePlayerDemo.ucSimplePlayer ucSimplePlayer1 
+      Height          =   5655
+      Left            =   240
+      TabIndex        =   12
+      Top             =   1200
+      Width           =   9615
+      _ExtentX        =   15266
+      _ExtentY        =   10398
    End
    Begin ComctlLib.Slider Slider2 
       Height          =   375
@@ -437,7 +436,7 @@ End Sub
     Slider1.LargeChange = CLng(nSec) \ 10
     Timer1.Interval = 250
     Timer1.Enabled = True
-    ucSimplePlayer1.volume = Slider2.Value / 100
+    ucSimplePlayer1.Volume = Slider2.Value / 100
 End Sub
 
   
@@ -496,7 +495,7 @@ Private Sub ucSimplePlayer1_PlayerClick(ByVal Button As Long)
                 
                 .fMask = MIIM_ID Or MIIM_STRING
                 .wID = 1002
-                If ucSimplePlayer1.FullScreen Then
+                If ucSimplePlayer1.Fullscreen Then
                     .dwTypeData = StrPtr("Exit fullscreen")
                     .cch = Len("Exit fullscreen")
                 Else
@@ -546,10 +545,10 @@ Private Sub ucSimplePlayer1_PlayerClick(ByVal Button As Long)
             'Be careful adding commands with how this is processed
             Select Case idCmd
                 Case 1002
-                    If ucSimplePlayer1.FullScreen Then
-                        ucSimplePlayer1.FullScreen = False
+                    If ucSimplePlayer1.Fullscreen Then
+                        ucSimplePlayer1.Fullscreen = False
                     Else
-                        ucSimplePlayer1.FullScreen = True
+                        ucSimplePlayer1.Fullscreen = True
                     End If
                     
                 Case 1003
@@ -591,7 +590,7 @@ End Sub
 
 Private Sub Timer1_Timer() 'Handles Timer1.Timer
     Dim nSec As Currency
-    nSec = ucSimplePlayer1.position / 1000 '0000
+    nSec = ucSimplePlayer1.Position / 1000 '0000
     If mNoUpdate = False Then Slider1.Value = nSec
     Label1.Caption = TimeSec2String(nSec)
     ' Debug.Print "updatepost " & nSec & " / " & Slider1.Max
@@ -600,7 +599,7 @@ End Sub
 Private Sub Slider1_Click() 'Handles Slider1.Click
     If mPlay Then
         Debug.Print "SetPos Click"
-        ucSimplePlayer1.position = CCur(Slider1.Value) * 1000
+        ucSimplePlayer1.Position = CCur(Slider1.Value) * 1000
         mDropScroll = True
     End If
 End Sub
@@ -611,7 +610,7 @@ Private Sub Slider1_Scroll() 'Handles Slider1.Scroll
         Else
             If mNoUpdate = False Then
                 Debug.Print "SetPos Scroll"
-                ucSimplePlayer1.position = CCur(Slider1.Value) * 1000
+                ucSimplePlayer1.Position = CCur(Slider1.Value) * 1000
             End If
         End If
     End If
@@ -625,7 +624,7 @@ End Sub
 
 
 Private Sub Slider2_Click() 'Handles Slider2.Click
-    ucSimplePlayer1.volume = Slider2.Value / 100
+    ucSimplePlayer1.Volume = Slider2.Value / 100
 End Sub
 
 Private Sub Slider1_Validate(Cancel As Boolean) 'Handles Slider1.Validate
@@ -660,7 +659,7 @@ Else
         Slider2.Value = 100
     End If
 End If
-ucSimplePlayer1.volume = Slider2.Value / 100
+ucSimplePlayer1.Volume = Slider2.Value / 100
 End Sub
 
 Private Sub Form_Load() 'Handles Form.Load
@@ -685,3 +684,5 @@ If fFree Then
 End If
 
 End Function
+
+

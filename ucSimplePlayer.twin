@@ -8,7 +8,7 @@ Class ucSimplePlayer
 Option Explicit
 #Const DEBUGBLD = 0
 '**********************************************************************
-'ucSimplePlayer v2.4.11
+'ucSimplePlayer v2.4.12
 'by Jon Johnson
 '
 'This is a simple video player control loosely based on the SimplePlay
@@ -23,6 +23,9 @@ Option Explicit
 '-Windows 7 or newer
 '
 'Version 2.4.11 (19 May 2025)
+'-Changes to make VB6 version finally work.  (Thanks again to VanGoghGaming 
+'   for help with this; graphics not my forté.)
+'Version 2.4.10 (19 May 2025)
 '-Now using AlphaBlend instead of ImageList_Draw to render album art, as
 '   a partial workaround to the VB6 issue. (Thanks to VanGoghGaming for tip)
 '-Now using SHCreateMemStream instead of CreateStreamOnHGlobal to satisfy
@@ -917,7 +920,7 @@ Public Property Let PreserveAspectRatio(ByVal bPreserve As Boolean)
     On Error Resume Next
     mLockAR = bPreserve
     If (mPlayer Is Nothing) = False Then
-        mPlayer.SetAspectRatioMode(IIf(mLockAR, MFVideoARMode_PreservePicture, MFVideoARMode_None))
+        mPlayer.SetAspectRatioMode IIf(mLockAR, MFVideoARMode_PreservePicture, MFVideoARMode_None)
         If Picture1.Visible = True Then
             Dim rcCur As RECT
             GetClientRect UserControl.hWnd, rcCur
@@ -1140,6 +1143,7 @@ Private Sub OnMediaItemSet(pEvent As MFP_MEDIAITEM_SET_EVENT)
             'still glitch out and not draw, even if AutoRedraw was changed.
             Picture1.Visible = True
             Picture1.BackColor = UserControl.BackColor
+            Set Picture1.Picture = LoadPicture
             Dim rcCur As RECT
             GetClientRect UserControl.hWnd, rcCur
             ' Picture1.Width = UserControl.ScaleWidth
@@ -1404,6 +1408,8 @@ Private Function LoadAlbumArt(ByVal pItem As IMFPMediaItem) As Long
                     mDefCover = GlobalAlloc(GPTR, UBound(bt) + 1)
                     If mDefCover Then
                         CopyMemory ByVal mDefCover, bt(0), UBound(bt) + 1
+                    Else
+                        DebugLog "Error allocating memory for def cover, 0x" & Hex$(Err.LastDllError)
                     End If
                 End If
             End If
@@ -1523,7 +1529,7 @@ Private Sub RenderWicImage(pImage As IWICBitmapSource, hDC As LongPtr, x As Long
     Dim prc As WICRect
     Dim tBMI As BITMAPINFO
     Dim hDCScr As LongPtr
-    Dim hDIBBitmap As LongPtr
+    Dim hDIBBitmap As LongPtr, hOldBitmap As LongPtr
     Dim pvImageBits As LongPtr
     Dim nImage As Long
     Dim nStride As Long
@@ -1546,8 +1552,9 @@ Private Sub RenderWicImage(pImage As IWICBitmapSource, hDC As LongPtr, x As Long
         nImage = nStride * cy
         pImage.CopyPixels vbNullPtr, nStride, nImage, ByVal pvImageBits
         DebugLog nStride & "," & nImage
+        #If TWINBASIC Then
         Picture1.Cls
-        ' hBitmapToPictureBox hDC, hDIBBitmap, x, y
+        #End If
         Dim bf As BLENDFUNCTION, lbf As Long
         With bf
             .BlendOp = AC_SRC_OVER
@@ -1560,7 +1567,11 @@ Private Sub RenderWicImage(pImage As IWICBitmapSource, hDC As LongPtr, x As Long
         SelectObject hDCScr, hBmpOld
         DeleteObject hDIBBitmap
         DeleteDC hDCScr
+        #If TWINBASIC Then
         Picture1.Refresh
+        #Else
+        Set Picture1.Picture = Picture1.Image
+        #End If
     Else
         DebugLog "Failed to create hDIBBitmap, lastErr=0x" & Hex$(Err.LastDllError)
     End If
@@ -1625,6 +1636,9 @@ Public Function ucWndProc(ByVal lng_hWnd As LongPtr, ByVal uMsg As Long, ByVal w
                 Exit Function
             End If
         Case WM_SIZE
+            #If TWINBASIC = 0 Then
+            Set Picture1.Picture = LoadPicture
+            #End If
             If mHasVideo Then
                 OnSize hWnd, CLng(wParam), CIntToUInt(LOWORD(CLng(lParam))), CIntToUInt(HIWORD(CLng(lParam)))
                 ' Exit Function
