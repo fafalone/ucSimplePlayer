@@ -51,6 +51,9 @@ The player in ucSimplePlayerDemo.twinproj is nicer with more features than the O
 ```
 
 **UPDATE - v2.3.10 (18 May 2025)**
+
+![17477777096219213042814292830017](https://github.com/user-attachments/assets/8b2c9513-904f-4b46-965d-5500d0233442)
+
 ```
 'Version 2.3.10 (18 May 2025)
 '-Album cover is now displayed when you play audio files; you can set
