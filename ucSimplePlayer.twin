@@ -8,7 +8,7 @@ Class ucSimplePlayer
 Option Explicit
 #Const DEBUGBLD = 0
 '**********************************************************************
-'ucSimplePlayer v2.4.12
+'ucSimplePlayer v2.4.13
 'by Jon Johnson
 '
 'This is a simple video player control loosely based on the SimplePlay
@@ -22,6 +22,7 @@ Option Explicit
 'Requirements:
 '-Windows 7 or newer
 '
+'Version 2.4.13 (22 Sep 2025) - Bug fix for UseDefaultAlbumArt property.
 'Version 2.4.11 (19 May 2025)
 '-Changes to make VB6 version finally work.  (Thanks again to VanGoghGaming 
 '   for help with this; graphics not my forté.)
@@ -837,7 +838,7 @@ Attribute UseDefaultAlbumArt.VB_Description = "Sets whether a default image is d
     UseDefaultAlbumArt = mUseDefCover
 End Property
 Public Property Let UseDefaultAlbumArt(ByVal bValue As Boolean)
-    UseDefaultAlbumArt = bValue
+    mUseDefCover = bValue
 End Property
 Public Function SetDefaultAlbumArt(ImageFileBytes() As Byte) As Long
     On Error GoTo e0
