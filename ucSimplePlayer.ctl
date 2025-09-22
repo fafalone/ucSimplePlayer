@@ -867,7 +867,7 @@ Attribute UseDefaultAlbumArt.VB_Description = "Sets whether a default image is d
     UseDefaultAlbumArt = mUseDefCover
 End Property
 Public Property Let UseDefaultAlbumArt(ByVal bValue As Boolean)
-    UseDefaultAlbumArt = bValue
+    mUseDefCover = bValue
 End Property
 Public Function SetDefaultAlbumArt(ImageFileBytes() As Byte) As Long
     On Error GoTo e0
