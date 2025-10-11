@@ -107,7 +107,8 @@ The player in ucSimplePlayerDemo.twinproj is nicer with more features than the O
 
 **Requirements**\
 Windows 7 or newer\
-VB6, twinBASIC, or VBA
+To compile an OCX, or to use as a UserControl within a project: twinBASIC\
+To use the compiled OCX control: VB6, twinBASIC, VBA or other environment capable of hosting COM/ActiveX controls. 
  
 **Usage in VBA**\
 VBA can only use this project as an OCX. Use twinBASIC (run it as admin or see non-admin section further down) to compile the OCX matching your Office bitness, it will automatically register. (Note: If you don't subscribe to tB, the 64bit build will have a tB splash screen when it's loaded.)
