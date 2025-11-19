@@ -1419,7 +1419,7 @@ Private Function LoadAlbumArt(ByVal pItem As IMFPMediaItem) As Long
     End If
     If (pStm Is Nothing) = False Then
         #If TWINBASIC Then
-        Set pDecoder = pFact.CreateDecoderFromStream(pStm, vbNullPtr, WICDecodeMetadataCacheOnDemand)
+        Set pDecoder = pFact.CreateDecoderFromStream(pStm, ByVal vbNullPtr, WICDecodeMetadataCacheOnDemand)
         #Else
         Set pDecoder = pFact.CreateDecoderFromStream(pStm, UUID_NULL, WICDecodeMetadataCacheOnDemand)    
         #End If
@@ -1551,7 +1551,7 @@ Private Sub RenderWicImage(pImage As IWICBitmapSource, hDC As LongPtr, x As Long
         hBmpOld = SelectObject(hDCScr, hDIBBitmap)
         nStride = DIB_WIDTHBYTES(cx * 32)
         nImage = nStride * cy
-        pImage.CopyPixels vbNullPtr, nStride, nImage, ByVal pvImageBits
+        pImage.CopyPixels ByVal vbNullPtr, nStride, nImage, ByVal pvImageBits
         DebugLog nStride & "," & nImage
         #If TWINBASIC Then
         Picture1.Cls
